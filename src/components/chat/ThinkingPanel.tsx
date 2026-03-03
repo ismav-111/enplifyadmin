@@ -12,7 +12,30 @@ interface ThinkingPanelProps {
 export const ThinkingPanel = ({ steps, isComplete }: ThinkingPanelProps) => {
   const [expanded, setExpanded] = useState(false);
 
-  if (isComplete) return null;
+  // Completed state: show collapsible "View reasoning" link
+  if (isComplete) {
+    return (
+      <div className="mb-3">
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+        >
+          <ChevronDown className={cn("w-3 h-3 transition-transform duration-200", expanded && "rotate-180")} />
+          <span>View reasoning</span>
+        </button>
+        {expanded && (
+          <div className="flex flex-col gap-1.5 pl-1 border-l border-border/40 ml-1 mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
+            {steps.map(step => (
+              <div key={step.id} className="flex items-center gap-2 text-xs">
+                <Check className="w-3 h-3 text-primary shrink-0" />
+                <span className="text-muted-foreground">{step.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const activeStep = steps.find(s => s.status === 'active');
   const completedCount = steps.filter(s => s.status === 'complete').length;
