@@ -2,12 +2,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Users, MessageSquare, FolderOpen, FileText,
-  Activity, Server, ArrowLeft, Zap, Clock, ShieldCheck,
-  Database, LogOut
+  Activity, Server, Zap, Clock, ShieldCheck,
+  Database, LogOut, LayoutDashboard, ChevronLeft,
+  ChevronRight, TrendingUp, ArrowUpRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { StatCard } from "@/components/admin/StatCard";
 import { AdminChart } from "@/components/admin/AdminChart";
 import { DateRangePicker } from "@/components/admin/DateRangePicker";
 import {
@@ -25,10 +25,10 @@ import type { DateRange } from "react-day-picker";
 
 type Section = "overview" | "users" | "chat" | "workspaces" | "system";
 
-const NAV: { id: Section; label: string; icon: React.ElementType }[] = [
-  { id: "overview", label: "Overview", icon: Activity },
+const NAV: { id: Section; label: string; icon: React.ElementType; badge?: number }[] = [
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "users", label: "Users & Activity", icon: Users },
-  { id: "chat", label: "Chat & Messages", icon: MessageSquare },
+  { id: "chat", label: "Chat & Messages", icon: MessageSquare, badge: 4 },
   { id: "workspaces", label: "Workspaces & Docs", icon: FolderOpen },
   { id: "system", label: "System & API", icon: Server },
 ];
@@ -41,97 +41,151 @@ const activityTypeIcon: Record<string, React.ElementType> = {
   api: Zap,
 };
 
-const activityTypeBadge: Record<string, string> = {
-  workspace: "bg-primary/10 text-primary",
-  document: "bg-amber-500/10 text-amber-600",
-  chat: "bg-green-500/10 text-green-600",
-  user: "bg-purple-500/10 text-purple-600",
-  api: "bg-cyan-500/10 text-cyan-600",
+const activityColors: Record<string, string> = {
+  workspace: "#6366f1",
+  document: "#f59e0b",
+  chat: "#10b981",
+  user: "#8b5cf6",
+  api: "#06b6d4",
 };
 
-// Slice data based on preset days
 function sliceByDays<T>(data: T[], days: number | null) {
   if (!days) return data;
   return data.slice(-days);
 }
 
+// ── Premium Stat Card (dark-accented) ────────────────────────────────────────
+const PremiumStat = ({
+  title, value, subtitle, icon: Icon, trend, color,
+}: {
+  title: string; value: string | number; subtitle?: string;
+  icon: React.ElementType; trend?: number; color: string;
+}) => {
+  const isUp = (trend ?? 0) >= 0;
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-5 group hover:border-border/80 transition-all hover:shadow-md">
+      {/* Subtle glow blob */}
+      <div
+        className="absolute -top-6 -right-6 w-24 h-24 rounded-full opacity-[0.07] blur-2xl"
+        style={{ background: color }}
+      />
+      <div className="relative">
+        <div className="flex items-start justify-between mb-4">
+          <div
+            className="p-2.5 rounded-xl"
+            style={{ background: `${color}18` }}
+          >
+            <Icon className="w-4 h-4" style={{ color }} />
+          </div>
+          {trend !== undefined && (
+            <span
+              className={cn(
+                "flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full",
+                isUp ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500"
+              )}
+            >
+              <ArrowUpRight className={cn("w-3 h-3", !isUp && "rotate-90")} />
+              {Math.abs(trend)}%
+            </span>
+          )}
+        </div>
+        <p className="text-2xl font-bold text-foreground tracking-tight">{value}</p>
+        <p className="text-sm font-medium text-foreground mt-0.5">{title}</p>
+        {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+      </div>
+    </div>
+  );
+};
+
+// ── Chart card wrapper ────────────────────────────────────────────────────────
+const ChartCard = ({
+  title, subtitle, children, className,
+}: {
+  title: string; subtitle?: string; children: React.ReactNode; className?: string;
+}) => (
+  <div className={cn("rounded-2xl bg-card border border-border p-5", className)}>
+    <div className="mb-4">
+      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+    </div>
+    {children}
+  </div>
+);
+
 const Admin = () => {
   const navigate = useNavigate();
   const [section, setSection] = useState<Section>("overview");
+  const [collapsed, setCollapsed] = useState(false);
   const [dateRange, setDateRange] = useState<{
     preset: number | null;
     range: DateRange | undefined;
   }>({ preset: 30, range: undefined });
 
   const days = dateRange.preset ?? 30;
-
   const userData = sliceByDays(userGrowthData, days);
   const msgData = sliceByDays(messageVolumeData, days);
   const sysData = sliceByDays(systemMetricsData, days);
 
-  // Chart color tokens resolved at runtime
-  const P = "hsl(230, 80%, 55%)";
-  const G = "hsl(142, 71%, 45%)";
-  const A = "hsl(38, 92%, 50%)";
-  const C = "hsl(188, 80%, 44%)";
+  // Brand-consistent chart colors
+  const P  = "hsl(230, 80%, 60%)";
+  const G  = "hsl(152, 69%, 47%)";
+  const A  = "hsl(38, 92%, 52%)";
+  const C  = "hsl(188, 80%, 46%)";
+  const R  = "hsl(0, 72%, 56%)";
 
+  const activeNav = NAV.find((n) => n.id === section)!;
+
+  // ── Section content ──────────────────────────────────────────────────────
   const renderSection = () => {
     switch (section) {
-      // ── OVERVIEW ──────────────────────────────────────────────────────────
       case "overview":
         return (
-          <div className="space-y-8">
-            {/* Stat cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard title="Total Users" value={summaryStats.totalUsers.toLocaleString()} subtitle={`${summaryStats.activeUsersToday} active today`} icon={Users} trend={summaryStats.userGrowthPct} accent="primary" />
-              <StatCard title="Messages Sent" value={summaryStats.totalMessages.toLocaleString()} subtitle={`${summaryStats.messagesToday.toLocaleString()} today`} icon={MessageSquare} trend={summaryStats.messageGrowthPct} accent="success" />
-              <StatCard title="Workspaces" value={summaryStats.totalWorkspaces} subtitle={`${summaryStats.totalDocuments.toLocaleString()} documents`} icon={FolderOpen} trend={summaryStats.workspacesGrowthPct} accent="warning" />
-              <StatCard title="API Calls" value={summaryStats.totalApiCalls.toLocaleString()} subtitle={`${summaryStats.avgResponseMs} ms avg`} icon={Zap} trend={4.1} accent="primary" />
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+              <PremiumStat title="Total Users" value={summaryStats.totalUsers.toLocaleString()} subtitle={`${summaryStats.activeUsersToday} active today`} icon={Users} trend={summaryStats.userGrowthPct} color="#6366f1" />
+              <PremiumStat title="Messages Sent" value={summaryStats.totalMessages.toLocaleString()} subtitle={`${summaryStats.messagesToday.toLocaleString()} today`} icon={MessageSquare} trend={summaryStats.messageGrowthPct} color="#10b981" />
+              <PremiumStat title="Workspaces" value={summaryStats.totalWorkspaces} subtitle={`${summaryStats.totalDocuments.toLocaleString()} documents`} icon={FolderOpen} trend={summaryStats.workspacesGrowthPct} color="#f59e0b" />
+              <PremiumStat title="API Calls" value={summaryStats.totalApiCalls.toLocaleString()} subtitle={`${summaryStats.avgResponseMs} ms avg`} icon={Zap} trend={4.1} color="#06b6d4" />
             </div>
-
-            {/* Charts row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-card border border-border rounded-xl p-5">
-                <h3 className="text-sm font-semibold text-foreground mb-1">User Growth</h3>
-                <p className="text-xs text-muted-foreground mb-4">New vs active users per day</p>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              <ChartCard title="User Growth" subtitle="New vs active users per day">
                 <AdminChart data={userData} type="area" xKey="date" dataKeys={[{ key: "newUsers", label: "New Users", color: P }, { key: "activeUsers", label: "Active Users", color: G }]} />
-              </div>
-              <div className="bg-card border border-border rounded-xl p-5">
-                <h3 className="text-sm font-semibold text-foreground mb-1">Message Volume</h3>
-                <p className="text-xs text-muted-foreground mb-4">Daily messages and AI responses</p>
+              </ChartCard>
+              <ChartCard title="Message Volume" subtitle="Daily messages and AI responses">
                 <AdminChart data={msgData} type="area" xKey="date" dataKeys={[{ key: "messages", label: "Messages", color: P }, { key: "aiResponses", label: "AI Responses", color: C }]} />
-              </div>
+              </ChartCard>
             </div>
-
-            {/* Bottom row */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Workspace breakdown */}
-              <div className="bg-card border border-border rounded-xl p-5">
-                <h3 className="text-sm font-semibold text-foreground mb-1">Workspace Types</h3>
-                <p className="text-xs text-muted-foreground mb-4">Messages by workspace category</p>
-                <AdminChart data={workspaceUsageData} type="bar" xKey="name" height={180} dataKeys={[{ key: "messages", label: "Messages", color: P }, { key: "documents", label: "Documents", color: A }]} />
-              </div>
-
-              {/* Recent activity */}
-              <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5">
-                <h3 className="text-sm font-semibold text-foreground mb-1">Recent Activity</h3>
-                <p className="text-xs text-muted-foreground mb-4">Latest actions across the platform</p>
-                <div className="space-y-2">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+              <ChartCard title="Workspace Types" subtitle="Messages by category">
+                <AdminChart data={workspaceUsageData} type="bar" xKey="name" height={180} dataKeys={[{ key: "messages", label: "Messages", color: P }, { key: "documents", label: "Docs", color: A }]} />
+              </ChartCard>
+              <div className="xl:col-span-2 rounded-2xl bg-card border border-border p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Recent Activity</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Latest actions across the platform</p>
+                  </div>
+                  <button className="text-xs text-primary font-medium flex items-center gap-1 hover:underline">
+                    View all <ArrowUpRight className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="space-y-1">
                   {recentActivity.slice(0, 6).map((item) => {
                     const Icon = activityTypeIcon[item.type] ?? Activity;
+                    const c = activityColors[item.type] ?? "#6366f1";
                     return (
-                      <div key={item.id} className="flex items-center gap-3 py-1.5 border-b border-border last:border-0">
-                        <span className={cn("p-1.5 rounded-md shrink-0", activityTypeBadge[item.type])}>
-                          <Icon className="w-3.5 h-3.5" />
+                      <div key={item.id} className="flex items-center gap-3 py-2 border-b border-border/60 last:border-0">
+                        <span className="p-1.5 rounded-lg shrink-0" style={{ background: `${c}18` }}>
+                          <Icon className="w-3.5 h-3.5" style={{ color: c }} />
                         </span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-foreground truncate">
-                            <span className="font-medium">{item.user}</span>
+                          <p className="text-[13px] text-foreground truncate">
+                            <span className="font-semibold">{item.user}</span>
                             <span className="text-muted-foreground"> {item.action} </span>
                             <span className="font-medium">{item.target}</span>
                           </p>
                         </div>
-                        <span className="text-xs text-muted-foreground shrink-0">{item.time}</span>
+                        <span className="text-[11px] text-muted-foreground shrink-0">{item.time}</span>
                       </div>
                     );
                   })}
@@ -141,40 +195,38 @@ const Admin = () => {
           </div>
         );
 
-      // ── USERS ─────────────────────────────────────────────────────────────
       case "users":
         return (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard title="Total Users" value={summaryStats.totalUsers} icon={Users} trend={summaryStats.userGrowthPct} accent="primary" />
-              <StatCard title="Active Today" value={summaryStats.activeUsersToday} subtitle="of total users" icon={Activity} accent="success" />
-              <StatCard title="Avg Session" value="18 min" subtitle="per user per day" icon={Clock} accent="warning" />
-              <StatCard title="Retention" value="74%" subtitle="30-day retention" icon={ShieldCheck} accent="primary" />
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+              <PremiumStat title="Total Users" value={summaryStats.totalUsers} icon={Users} trend={summaryStats.userGrowthPct} color="#6366f1" />
+              <PremiumStat title="Active Today" value={summaryStats.activeUsersToday} subtitle="of total users" icon={Activity} color="#10b981" />
+              <PremiumStat title="Avg Session" value="18 min" subtitle="per user per day" icon={Clock} color="#f59e0b" />
+              <PremiumStat title="Retention" value="74%" subtitle="30-day retention" icon={ShieldCheck} color="#8b5cf6" />
             </div>
-            <div className="bg-card border border-border rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-1">User Growth Over Time</h3>
-              <p className="text-xs text-muted-foreground mb-4">New signups and daily active users</p>
-              <AdminChart data={userData} type="area" height={260} xKey="date" dataKeys={[{ key: "total", label: "Cumulative Users", color: P }, { key: "newUsers", label: "New Signups", color: G }, { key: "activeUsers", label: "Daily Active", color: A }]} />
-            </div>
-            {/* Full activity table */}
-            <div className="bg-card border border-border rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-4">All Recent Activity</h3>
+            <ChartCard title="User Growth Over Time" subtitle="New signups and daily active users">
+              <AdminChart data={userData} type="area" height={260} xKey="date" dataKeys={[{ key: "total", label: "Cumulative", color: P }, { key: "newUsers", label: "New Signups", color: G }, { key: "activeUsers", label: "Daily Active", color: A }]} />
+            </ChartCard>
+            <div className="rounded-2xl bg-card border border-border overflow-hidden">
+              <div className="px-5 py-4 border-b border-border">
+                <h3 className="text-sm font-semibold text-foreground">All Recent Activity</h3>
+              </div>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left">
-                    <th className="pb-2 text-xs font-medium text-muted-foreground">User</th>
-                    <th className="pb-2 text-xs font-medium text-muted-foreground">Action</th>
-                    <th className="pb-2 text-xs font-medium text-muted-foreground">Target</th>
-                    <th className="pb-2 text-xs font-medium text-muted-foreground text-right">Time</th>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="px-5 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">User</th>
+                    <th className="px-5 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Action</th>
+                    <th className="px-5 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Target</th>
+                    <th className="px-5 py-2.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Time</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {recentActivity.map((item) => (
-                    <tr key={item.id} className="border-b border-border last:border-0">
-                      <td className="py-2.5 text-foreground font-medium">{item.user}</td>
-                      <td className="py-2.5 text-muted-foreground">{item.action}</td>
-                      <td className="py-2.5 text-foreground">{item.target}</td>
-                      <td className="py-2.5 text-muted-foreground text-right">{item.time}</td>
+                  {recentActivity.map((item, i) => (
+                    <tr key={item.id} className={cn("border-b border-border/60 last:border-0 hover:bg-muted/20 transition-colors", i % 2 === 0 && "bg-muted/10")}>
+                      <td className="px-5 py-3 font-semibold text-foreground">{item.user}</td>
+                      <td className="px-5 py-3 text-muted-foreground">{item.action}</td>
+                      <td className="px-5 py-3 text-foreground">{item.target}</td>
+                      <td className="px-5 py-3 text-muted-foreground text-right">{item.time}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -183,71 +235,64 @@ const Admin = () => {
           </div>
         );
 
-      // ── CHAT ──────────────────────────────────────────────────────────────
       case "chat":
         return (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard title="Total Messages" value={summaryStats.totalMessages.toLocaleString()} subtitle={`+${summaryStats.messagesToday} today`} icon={MessageSquare} trend={summaryStats.messageGrowthPct} accent="primary" />
-              <StatCard title="AI Responses" value={(Math.round(summaryStats.totalMessages * 0.94)).toLocaleString()} subtitle="94% answer rate" icon={Zap} accent="success" />
-              <StatCard title="Avg Msg/Session" value="12.4" subtitle="messages per session" icon={Activity} accent="warning" />
-              <StatCard title="Avg Response" value={`${summaryStats.avgResponseMs} ms`} subtitle="AI response time" icon={Clock} accent="primary" />
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+              <PremiumStat title="Total Messages" value={summaryStats.totalMessages.toLocaleString()} subtitle={`+${summaryStats.messagesToday} today`} icon={MessageSquare} trend={summaryStats.messageGrowthPct} color="#6366f1" />
+              <PremiumStat title="AI Responses" value={(Math.round(summaryStats.totalMessages * 0.94)).toLocaleString()} subtitle="94% answer rate" icon={Zap} color="#10b981" />
+              <PremiumStat title="Avg Msg/Session" value="12.4" subtitle="messages per session" icon={Activity} color="#f59e0b" />
+              <PremiumStat title="Avg Response" value={`${summaryStats.avgResponseMs} ms`} subtitle="AI response time" icon={Clock} color="#06b6d4" />
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-card border border-border rounded-xl p-5">
-                <h3 className="text-sm font-semibold text-foreground mb-1">Daily Message Volume</h3>
-                <p className="text-xs text-muted-foreground mb-4">Messages vs AI responses</p>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              <ChartCard title="Daily Message Volume" subtitle="Messages vs AI responses">
                 <AdminChart data={msgData} type="area" height={240} xKey="date" dataKeys={[{ key: "messages", label: "Messages", color: P }, { key: "aiResponses", label: "AI Responses", color: C }]} />
-              </div>
-              <div className="bg-card border border-border rounded-xl p-5">
-                <h3 className="text-sm font-semibold text-foreground mb-1">Messages by Workspace</h3>
-                <p className="text-xs text-muted-foreground mb-4">Volume breakdown per type</p>
+              </ChartCard>
+              <ChartCard title="Messages by Workspace" subtitle="Volume breakdown per type">
                 <AdminChart data={workspaceUsageData} type="bar" height={240} xKey="name" dataKeys={[{ key: "messages", label: "Messages", color: P }]} />
-              </div>
+              </ChartCard>
             </div>
           </div>
         );
 
-      // ── WORKSPACES ────────────────────────────────────────────────────────
       case "workspaces":
         return (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard title="Total Workspaces" value={summaryStats.totalWorkspaces} trend={summaryStats.workspacesGrowthPct} icon={FolderOpen} accent="primary" />
-              <StatCard title="Documents" value={summaryStats.totalDocuments.toLocaleString()} subtitle="across all workspaces" icon={FileText} accent="warning" />
-              <StatCard title="Storage Used" value={summaryStats.storageUsed} subtitle="total storage" icon={Database} accent="success" />
-              <StatCard title="Shared Spaces" value="42" subtitle="team workspaces" icon={Users} accent="primary" />
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+              <PremiumStat title="Total Workspaces" value={summaryStats.totalWorkspaces} trend={summaryStats.workspacesGrowthPct} icon={FolderOpen} color="#6366f1" />
+              <PremiumStat title="Documents" value={summaryStats.totalDocuments.toLocaleString()} subtitle="across all workspaces" icon={FileText} color="#f59e0b" />
+              <PremiumStat title="Storage Used" value={summaryStats.storageUsed} subtitle="total storage" icon={Database} color="#10b981" />
+              <PremiumStat title="Shared Spaces" value="42" subtitle="team workspaces" icon={Users} color="#8b5cf6" />
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-card border border-border rounded-xl p-5">
-                <h3 className="text-sm font-semibold text-foreground mb-1">Workspace Distribution</h3>
-                <p className="text-xs text-muted-foreground mb-4">Workspaces, documents, and messages by type</p>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              <ChartCard title="Workspace Distribution" subtitle="Workspaces and documents by type">
                 <AdminChart data={workspaceUsageData} type="bar" height={240} xKey="name" dataKeys={[{ key: "workspaces", label: "Workspaces", color: P }, { key: "documents", label: "Documents", color: A }]} />
-              </div>
-              {/* Top workspaces table */}
-              <div className="bg-card border border-border rounded-xl p-5">
-                <h3 className="text-sm font-semibold text-foreground mb-4">Top Workspaces by Usage</h3>
+              </ChartCard>
+              <div className="rounded-2xl bg-card border border-border overflow-hidden">
+                <div className="px-5 py-4 border-b border-border">
+                  <h3 className="text-sm font-semibold text-foreground">Top Workspaces by Usage</h3>
+                </div>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-border text-left">
-                      <th className="pb-2 text-xs font-medium text-muted-foreground">Workspace</th>
-                      <th className="pb-2 text-xs font-medium text-muted-foreground text-right">Users</th>
-                      <th className="pb-2 text-xs font-medium text-muted-foreground text-right">Msgs</th>
-                      <th className="pb-2 text-xs font-medium text-muted-foreground text-right">Docs</th>
+                    <tr className="border-b border-border bg-muted/30">
+                      <th className="px-5 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Workspace</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Users</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Msgs</th>
+                      <th className="px-5 py-2.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Docs</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {topWorkspaces.map((ws) => (
-                      <tr key={ws.name} className="border-b border-border last:border-0">
-                        <td className="py-2">
+                    {topWorkspaces.map((ws, i) => (
+                      <tr key={ws.name} className={cn("border-b border-border/60 last:border-0 hover:bg-muted/20 transition-colors", i % 2 === 0 && "bg-muted/10")}>
+                        <td className="px-5 py-3">
                           <div className="flex items-center gap-2">
-                            <span className="text-foreground font-medium truncate max-w-[120px]">{ws.name}</span>
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 capitalize shrink-0">{ws.type}</Badge>
+                            <span className="font-semibold text-foreground truncate max-w-[120px]">{ws.name}</span>
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 capitalize">{ws.type}</Badge>
                           </div>
                         </td>
-                        <td className="py-2 text-right text-muted-foreground">{ws.users}</td>
-                        <td className="py-2 text-right text-muted-foreground">{ws.messages.toLocaleString()}</td>
-                        <td className="py-2 text-right text-muted-foreground">{ws.documents}</td>
+                        <td className="px-4 py-3 text-right text-muted-foreground">{ws.users}</td>
+                        <td className="px-4 py-3 text-right text-muted-foreground">{ws.messages.toLocaleString()}</td>
+                        <td className="px-5 py-3 text-right text-muted-foreground">{ws.documents}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -257,115 +302,202 @@ const Admin = () => {
           </div>
         );
 
-      // ── SYSTEM ────────────────────────────────────────────────────────────
       case "system":
         return (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard title="Total API Calls" value={summaryStats.totalApiCalls.toLocaleString()} trend={4.1} icon={Zap} accent="primary" />
-              <StatCard title="Avg Response" value={`${summaryStats.avgResponseMs} ms`} subtitle="last 30 days" icon={Clock} accent="success" />
-              <StatCard title="Error Rate" value={`${summaryStats.errorRate}%`} subtitle="below threshold" icon={Activity} accent="warning" />
-              <StatCard title="Uptime" value={`${summaryStats.uptime}%`} subtitle="last 30 days" icon={ShieldCheck} accent="success" />
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+              <PremiumStat title="Total API Calls" value={summaryStats.totalApiCalls.toLocaleString()} trend={4.1} icon={Zap} color="#6366f1" />
+              <PremiumStat title="Avg Response" value={`${summaryStats.avgResponseMs} ms`} subtitle="last 30 days" icon={Clock} color="#10b981" />
+              <PremiumStat title="Error Rate" value={`${summaryStats.errorRate}%`} subtitle="below threshold" icon={Activity} color="#f59e0b" />
+              <PremiumStat title="Uptime" value={`${summaryStats.uptime}%`} subtitle="last 30 days" icon={ShieldCheck} color="#10b981" />
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-card border border-border rounded-xl p-5">
-                <h3 className="text-sm font-semibold text-foreground mb-1">API Call Volume</h3>
-                <p className="text-xs text-muted-foreground mb-4">Daily API calls over time</p>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+              <ChartCard title="API Call Volume" subtitle="Daily API calls over time">
                 <AdminChart data={sysData} type="area" height={240} xKey="date" dataKeys={[{ key: "apiCalls", label: "API Calls", color: P }]} />
-              </div>
-              <div className="bg-card border border-border rounded-xl p-5">
-                <h3 className="text-sm font-semibold text-foreground mb-1">Response Time & Errors</h3>
-                <p className="text-xs text-muted-foreground mb-4">Avg response time (ms) and error rate (%)</p>
-                <AdminChart data={sysData} type="area" height={240} xKey="date" dataKeys={[{ key: "avgResponseMs", label: "Avg Response (ms)", color: A }, { key: "errorRate", label: "Error Rate (%)", color: "hsl(0, 70%, 50%)" }]} />
-              </div>
+              </ChartCard>
+              <ChartCard title="Response Time & Error Rate" subtitle="Latency (ms) and error rate (%)">
+                <AdminChart data={sysData} type="area" height={240} xKey="date" dataKeys={[{ key: "avgResponseMs", label: "Response (ms)", color: A }, { key: "errorRate", label: "Error Rate (%)", color: R }]} />
+              </ChartCard>
             </div>
-            {/* System health table */}
-            <div className="bg-card border border-border rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-4">System Health Summary</h3>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  {[
-                  { label: "Database", status: "Healthy", latency: "12 ms" },
-                  { label: "AI Engine", status: "Healthy", latency: `${summaryStats.avgResponseMs} ms` },
-                  { label: "File Storage", status: "Healthy", latency: "28 ms" },
-                  { label: "Auth Service", status: "Healthy", latency: "8 ms" },
-                ].map((service) => (
-                  <div key={service.label} className="border border-border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-foreground">{service.label}</span>
-                      <span className="flex items-center gap-1 text-xs font-medium text-primary">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block opacity-70" />
-                        {service.status}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Latency: {service.latency}</p>
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+              {[
+                { label: "Database", latency: "12 ms", uptime: "99.99%" },
+                { label: "AI Engine", latency: `${summaryStats.avgResponseMs} ms`, uptime: "99.97%" },
+                { label: "File Storage", latency: "28 ms", uptime: "99.98%" },
+                { label: "Auth Service", latency: "8 ms", uptime: "100%" },
+              ].map((s) => (
+                <div key={s.label} className="rounded-2xl bg-card border border-border p-5 relative overflow-hidden">
+                  <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[11px] font-semibold text-emerald-500">Live</span>
                   </div>
-                ))}
-              </div>
+                  <div className="p-2.5 rounded-xl bg-primary/10 w-fit mb-3">
+                    <Server className="w-4 h-4 text-primary" />
+                  </div>
+                  <p className="text-sm font-bold text-foreground">{s.label}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Latency: <span className="text-foreground font-medium">{s.latency}</span></p>
+                  <p className="text-xs text-muted-foreground">Uptime: <span className="text-foreground font-medium">{s.uptime}</span></p>
+                </div>
+              ))}
             </div>
           </div>
         );
 
-      default:
-        return null;
+      default: return null;
     }
   };
 
-  const activeNav = NAV.find((n) => n.id === section)!;
-
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
-      <aside className="w-56 border-r border-border h-screen bg-card flex flex-col sticky top-0 shrink-0">
-        <div className="flex items-center px-4 h-14 border-b border-border shrink-0">
-          <img src={enplifyLogo} alt="Enplify.ai" className="h-5" />
+    <div className="min-h-screen flex" style={{ background: "hsl(var(--background))" }}>
+      {/* ── Dark Sidebar ───────────────────────────────────────────────────── */}
+      <aside
+        className={cn(
+          "h-screen sticky top-0 flex flex-col shrink-0 transition-all duration-300",
+          collapsed ? "w-[68px]" : "w-[220px]"
+        )}
+        style={{ background: "hsl(224, 30%, 8%)", borderRight: "1px solid hsl(224, 20%, 14%)" }}
+      >
+        {/* Logo */}
+        <div
+          className="flex items-center h-16 shrink-0 px-4 gap-3"
+          style={{ borderBottom: "1px solid hsl(224, 20%, 14%)" }}
+        >
+          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shrink-0">
+            <TrendingUp className="w-4 h-4 text-primary-foreground" />
+          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <p className="text-[13px] font-bold text-white truncate leading-tight">Admin Panel</p>
+              <p className="text-[10px] text-white/40 truncate">Enplify.ai</p>
+            </div>
+          )}
         </div>
-        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-          <button onClick={() => navigate("/")} className="nav-item w-full justify-start gap-2">
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm">Back to App</span>
+
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
+          {!collapsed && (
+            <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "hsl(224, 15%, 40%)" }}>
+              Analytics
+            </p>
+          )}
+          {NAV.map((nav) => {
+            const isActive = section === nav.id;
+            return (
+              <button
+                key={nav.id}
+                onClick={() => setSection(nav.id)}
+                title={collapsed ? nav.label : undefined}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 relative group",
+                  collapsed && "justify-center"
+                )}
+                style={{
+                  background: isActive ? "hsl(230, 60%, 55%, 0.2)" : "transparent",
+                  color: isActive ? "hsl(230, 85%, 70%)" : "hsl(224, 15%, 55%)",
+                }}
+                onMouseEnter={e => {
+                  if (!isActive) (e.currentTarget as HTMLElement).style.background = "hsl(224, 20%, 14%)";
+                  if (!isActive) (e.currentTarget as HTMLElement).style.color = "hsl(210, 20%, 85%)";
+                }}
+                onMouseLeave={e => {
+                  if (!isActive) (e.currentTarget as HTMLElement).style.background = "transparent";
+                  if (!isActive) (e.currentTarget as HTMLElement).style.color = "hsl(224, 15%, 55%)";
+                }}
+              >
+                {isActive && (
+                  <span
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full"
+                    style={{ background: "hsl(230, 85%, 65%)" }}
+                  />
+                )}
+                <nav.icon className="w-4 h-4 shrink-0" />
+                {!collapsed && (
+                  <span className="text-[13px] font-medium flex-1 text-left truncate">{nav.label}</span>
+                )}
+                {!collapsed && nav.badge && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/20 text-primary min-w-[18px] text-center">
+                    {nav.badge}
+                  </span>
+                )}
+                {collapsed && nav.badge && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />
+                )}
+              </button>
+            );
+          })}
+
+          {/* Divider */}
+          <div className="my-3 mx-2" style={{ height: 1, background: "hsl(224, 20%, 14%)" }} />
+
+          {/* Back to app */}
+          <button
+            onClick={() => navigate("/")}
+            title={collapsed ? "Back to App" : undefined}
+            className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150", collapsed && "justify-center")}
+            style={{ color: "hsl(224, 15%, 45%)" }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.background = "hsl(224, 20%, 14%)";
+              (e.currentTarget as HTMLElement).style.color = "hsl(210, 20%, 75%)";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = "transparent";
+              (e.currentTarget as HTMLElement).style.color = "hsl(224, 15%, 45%)";
+            }}
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
+            {!collapsed && <span className="text-[13px] font-medium">Back to App</span>}
           </button>
-          <div className="py-2"><div className="h-px bg-border/60" /></div>
-          <p className="px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Analytics</p>
-          {NAV.map((nav) => (
-            <button
-              key={nav.id}
-              onClick={() => setSection(nav.id)}
-              className={cn(
-                "nav-item w-full justify-start gap-2",
-                section === nav.id && "bg-accent text-foreground font-medium"
-              )}
-            >
-              <nav.icon className="w-4 h-4 shrink-0" />
-              <span className="text-sm">{nav.label}</span>
-            </button>
-          ))}
         </nav>
+
+        {/* Collapse toggle */}
+        <div className="p-3 shrink-0" style={{ borderTop: "1px solid hsl(224, 20%, 14%)" }}>
+          <button
+            onClick={() => setCollapsed(v => !v)}
+            className={cn("w-full flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-150", collapsed && "justify-center")}
+            style={{ color: "hsl(224, 15%, 45%)" }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.background = "hsl(224, 20%, 14%)";
+              (e.currentTarget as HTMLElement).style.color = "hsl(210, 20%, 75%)";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = "transparent";
+              (e.currentTarget as HTMLElement).style.color = "hsl(224, 15%, 45%)";
+            }}
+          >
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            {!collapsed && <span className="text-[12px]">Collapse menu</span>}
+          </button>
+        </div>
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <header className="h-14 border-b border-border bg-card flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center gap-2">
-            <activeNav.icon className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-semibold text-foreground">{activeNav.label}</span>
+      {/* ── Main content ──────────────────────────────────────────────────── */}
+      <main className="flex-1 flex flex-col min-w-0" style={{ background: "hsl(var(--background))" }}>
+        {/* Topbar */}
+        <header className="h-16 shrink-0 flex items-center justify-between px-7 border-b border-border bg-card/60 backdrop-blur-sm sticky top-0 z-10">
+          <div>
+            <h1 className="text-base font-bold text-foreground">{activeNav.label}</h1>
+            <p className="text-xs text-muted-foreground">
+              {section === "overview" && "Platform-wide analytics snapshot"}
+              {section === "users" && "User acquisition and engagement metrics"}
+              {section === "chat" && "Message volume and AI performance"}
+              {section === "workspaces" && "Workspace and document statistics"}
+              {section === "system" && "API health and infrastructure metrics"}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <DateRangePicker value={dateRange} onChange={setDateRange} />
-            <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="gap-2 text-muted-foreground hover:text-foreground">
-              <LogOut className="w-4 h-4" />
-              <span>Exit Admin</span>
-            </Button>
+            <div className="flex items-center gap-2 pl-3 border-l border-border">
+              <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
+                <span className="text-xs font-bold text-primary">A</span>
+              </div>
+              {!collapsed && <span className="text-sm font-medium text-foreground hidden lg:block">Admin</span>}
+            </div>
           </div>
         </header>
 
-        {/* Content */}
+        {/* Page body */}
         <div className="flex-1 overflow-auto">
-          <div className="max-w-6xl mx-auto px-6 py-8">
-            <div className="mb-8">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Admin</p>
-              <h1 className="text-2xl font-semibold text-foreground tracking-tight">{activeNav.label}</h1>
-            </div>
+          <div className="max-w-[1280px] mx-auto px-7 py-7">
             {renderSection()}
           </div>
         </div>
