@@ -991,6 +991,104 @@ const Admin = () => {
           </div>
         </div>
 
+        {/* ── Feedback Messages ─────────────────────────────────────── */}
+        {(() => {
+          const wsFeedback = feedbackMessages.filter(f => f.workspaceId === ws.id);
+          const [fbFilter, setFbFilter] = wsFeedbackFilter;
+          const filtered = fbFilter === "all" ? wsFeedback : wsFeedback.filter(f => f.feedbackType === fbFilter);
+          if (wsFeedback.length === 0) return null;
+          return (
+            <div className="rounded-xl bg-card border border-border overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-muted/20 flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <p className="text-[13px] font-semibold text-foreground">
+                    User Feedback Messages
+                    <span className="ml-2 text-[11px] font-normal text-muted-foreground">({filtered.length})</span>
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Written comments submitted by users after rating AI responses
+                  </p>
+                </div>
+                <div className="flex gap-1.5">
+                  {(["all","positive","negative"] as const).map(f => (
+                    <button key={f} onClick={() => setFbFilter(f)}
+                      className={cn(
+                        "inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full capitalize transition-colors border",
+                        fbFilter === f
+                          ? f === "positive" ? "bg-emerald-500 border-emerald-500 text-white"
+                            : f === "negative" ? "bg-rose-500 border-rose-500 text-white"
+                            : "bg-primary border-primary text-primary-foreground"
+                          : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}>
+                      {f === "positive" && <ThumbsUp className="w-2.5 h-2.5" />}
+                      {f === "negative" && <ThumbsDown className="w-2.5 h-2.5" />}
+                      {f === "all" ? "All" : f}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="divide-y divide-border/60">
+                {filtered.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-[12px] text-muted-foreground">No feedback messages for this filter</div>
+                ) : filtered.map((fb) => (
+                  <div key={fb.id} className={cn(
+                    "px-4 py-3 hover:bg-muted/20 transition-colors",
+                    fb.feedbackType === "negative" && "border-l-2 border-l-rose-500/40"
+                  )}>
+                    <div className="flex items-start gap-3">
+                      {/* Feedback type icon */}
+                      <div className={cn(
+                        "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+                        fb.feedbackType === "positive" ? "bg-emerald-500/10" : "bg-rose-500/10"
+                      )}>
+                        {fb.feedbackType === "positive"
+                          ? <ThumbsUp className="w-3.5 h-3.5 text-emerald-500" />
+                          : <ThumbsDown className="w-3.5 h-3.5 text-rose-500" />}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        {/* User + session + time */}
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="text-[12px] font-semibold text-foreground">{fb.user.split("@")[0]}</span>
+                          <span className="text-[10px] text-muted-foreground">in</span>
+                          <span className="text-[11px] font-medium text-primary/80 truncate max-w-[160px]">{fb.sessionTitle}</span>
+                          <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{fb.submittedAt}</span>
+                        </div>
+
+                        {/* User query that triggered this */}
+                        <div className="flex items-start gap-1.5 mb-1.5">
+                          <MessageCircle className="w-3 h-3 text-muted-foreground/60 shrink-0 mt-0.5" />
+                          <p className="text-[11px] text-muted-foreground italic truncate">"{fb.userMessage}"</p>
+                        </div>
+
+                        {/* AI message snippet */}
+                        <div className="rounded-lg bg-muted/30 px-3 py-2 mb-2 border-l-2 border-border">
+                          <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
+                            <span className="font-semibold text-foreground/60">AI: </span>{fb.aiMessageSnippet}
+                          </p>
+                        </div>
+
+                        {/* Feedback comment */}
+                        <div className={cn(
+                          "rounded-lg px-3 py-2",
+                          fb.feedbackType === "positive" ? "bg-emerald-500/8" : "bg-rose-500/8"
+                        )}>
+                          <p className={cn(
+                            "text-[12px] font-medium leading-relaxed",
+                            fb.feedbackType === "positive" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"
+                          )}>
+                            "{fb.comment}"
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Data Sources for this workspace */}
         {wsSources.length > 0 && (
           <div className="rounded-xl bg-card border border-border overflow-hidden">
