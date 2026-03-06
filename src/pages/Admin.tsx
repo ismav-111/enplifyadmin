@@ -4,9 +4,9 @@ import {
   Users, MessageSquare, FolderOpen, FileText,
   Activity, Server, Zap, Clock, ShieldCheck,
   Database, LogOut, LayoutDashboard, ChevronLeft,
-  ChevronRight, TrendingUp, ArrowUpRight, Search,
+  ChevronRight, ChevronDown, ChevronUp, TrendingUp, ArrowUpRight, Search,
   RefreshCw, AlertTriangle, CheckCircle2, Layers,
-  HardDrive, BarChart3, Star, XCircle, Settings, User
+  HardDrive, BarChart3, Star, XCircle, Settings, User, Building2
 } from "lucide-react";
 import {
   DropdownMenu,
