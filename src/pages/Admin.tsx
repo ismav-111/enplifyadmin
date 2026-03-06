@@ -997,8 +997,7 @@ const Admin = () => {
         {/* ── Feedback Messages ─────────────────────────────────────── */}
         {(() => {
           const wsFeedback = feedbackMessages.filter(f => f.workspaceId === ws.id);
-          const [fbFilter, setFbFilter] = wsFeedbackFilter;
-          const filtered = fbFilter === "all" ? wsFeedback : wsFeedback.filter(f => f.feedbackType === fbFilter);
+          const filtered = wsFeedbackFilter === "all" ? wsFeedback : wsFeedback.filter(f => f.feedbackType === wsFeedbackFilter);
           if (wsFeedback.length === 0) return null;
           return (
             <div className="rounded-xl bg-card border border-border overflow-hidden">
