@@ -24,6 +24,7 @@ import {
   workspaceUsageData, systemMetricsData, topWorkspaces,
   recentActivity, dataSources, dataSourceQueryTrend,
   dataSourceStats, topSearchQueries, contentQualityData,
+  workspaceDetails,
   type DataSource,
 } from "@/data/mockAdminData";
 import { cn } from "@/lib/utils";
