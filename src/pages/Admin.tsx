@@ -165,7 +165,7 @@ const Admin = () => {
 
             {/* Second KPI row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <Stat label="Data Sources"    value={`${dataSourceStats.active} / ${dataSourceStats.total}`} sub="active connectors" icon={Layers}  color="#8b5cf6" />
+              <Stat label="Data Sources"    value={`${dataSourceStats.active} / ${dataSourceStats.total}`} sub={`${dataSourceStats.error} error · ${dataSourceStats.syncing} syncing`} icon={Layers}  color="#8b5cf6" />
               <Stat label="Storage Used"    value={summaryStats.storageUsed}                               sub="across all sources" icon={HardDrive} color="#f59e0b" />
               <Stat label="Uptime"          value={`${summaryStats.uptime}%`}                              sub="30-day SLA"        icon={ShieldCheck} color="#10b981" />
               <Stat label="Avg AI Response" value={`${summaryStats.avgResponseMs} ms`}                    sub="last 30 days"      icon={Clock}       color="#06b6d4" />
