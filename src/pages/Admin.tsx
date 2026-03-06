@@ -157,6 +157,11 @@ const Admin = () => {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(new Set());
 
+  // Tenant list filters
+  const [tenantSearch, setTenantSearch] = useState("");
+  const [tenantPlanFilter, setTenantPlanFilter] = useState<string>("all");
+  const [tenantStatusFilter, setTenantStatusFilter] = useState<string>("all");
+
   const days = dateRange.preset ?? 30;
   const userData = sliceByDays(userGrowthData, days);
   const msgData  = sliceByDays(messageVolumeData, days);
