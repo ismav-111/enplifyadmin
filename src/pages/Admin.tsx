@@ -512,9 +512,9 @@ const Admin = () => {
         {/* Logo row */}
         <div className="flex items-center h-14 shrink-0 px-3" style={{ borderBottom: `1px solid ${SB.border}` }}>
           {collapsed ? (
-            <img src={enplifyLogo} alt="Enplify.ai" className="h-4 object-contain" />
+            <img src={enplifyLogo} alt="Enplify.ai" className="h-4 object-contain brightness-0 invert" />
           ) : (
-            <img src={enplifyLogo} alt="Enplify.ai" className="h-5 object-contain" />
+            <img src={enplifyLogo} alt="Enplify.ai" className="h-5 object-contain brightness-0 invert" />
           )}
         </div>
 
