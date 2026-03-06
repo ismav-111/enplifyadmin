@@ -407,7 +407,7 @@ const Admin = () => {
                             <span className="text-[12px] text-emerald-500 font-bold">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-[12px] text-muted-foreground">{ds.workspace}</td>
+                        <td className="px-4 py-3 text-[12px] text-muted-foreground">{workspaceDetails.find(w => w.id === ds.workspaceId)?.name ?? ds.workspaceId}</td>
                       </tr>
                     ))}
                   </tbody>
