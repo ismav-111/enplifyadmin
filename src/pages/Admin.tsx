@@ -336,101 +336,229 @@ const Admin = () => {
   // ═══════════════════════════════════════════════════════════════════════════
   //  SECTION: TENANTS — Tenant list
   // ═══════════════════════════════════════════════════════════════════════════
-  const renderTenantList = () => (
-    <div className="space-y-5">
-      {/* Platform KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat label="Total Tenants"  value={summaryStats.totalTenants} sub={`${summaryStats.activeTenants} active`} icon={Building2} color="#6366f1" />
-        <Stat label="Total Users"    value={summaryStats.totalUsers}   sub="across all tenants"                      icon={Users}     color="#10b981" />
-        <Stat label="Workspaces"     value={summaryStats.totalWorkspaces} sub="active workspaces"                   icon={FolderOpen} color="#f59e0b" />
-        <Stat label="Total Messages" value={summaryStats.totalMessages.toLocaleString()} sub="all time"             icon={MessageSquare} color="#8b5cf6" />
-      </div>
+  const renderTenantList = () => {
+    const PLANS   = ["all", "starter", "pro", "enterprise"] as const;
+    const STATUSES = ["all", "active", "trial", "suspended"] as const;
 
-      {/* Tenant cards */}
-      <div className="space-y-2.5">
-        {tenants.map((t) => {
-          const tWorkspaces = workspaceDetails.filter(w => w.tenantId === t.id);
-          const tSessions   = chatSessions.filter(s => s.tenantId === t.id);
-          const tUp         = tSessions.reduce((acc, s) => acc + s.thumbsUp, 0);
-          const tDown       = tSessions.reduce((acc, s) => acc + s.thumbsDown, 0);
-          const tSat        = tUp + tDown > 0 ? Math.round((tUp / (tUp + tDown)) * 100) : 0;
+    const filtered = tenants.filter(t => {
+      const matchSearch = tenantSearch.trim() === "" ||
+        t.name.toLowerCase().includes(tenantSearch.toLowerCase()) ||
+        t.domain.toLowerCase().includes(tenantSearch.toLowerCase()) ||
+        t.adminEmail.toLowerCase().includes(tenantSearch.toLowerCase());
+      const matchPlan   = tenantPlanFilter   === "all" || t.plan   === tenantPlanFilter;
+      const matchStatus = tenantStatusFilter === "all" || t.status === tenantStatusFilter;
+      return matchSearch && matchPlan && matchStatus;
+    });
 
-          return (
-            <div key={t.id}
-              onClick={() => selectTenant(t.id)}
-              className={cn(
-                "group rounded-xl bg-card border border-border p-4 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all",
-                t.status === "suspended" && "opacity-70"
-              )}>
-              <div className="flex items-start gap-3">
-                {/* Avatar */}
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[15px] font-bold shrink-0"
-                  style={{ background: planBg[t.plan], color: planColors[t.plan] }}>
-                  {t.name.charAt(0)}
-                </div>
+    const hasActiveFilters = tenantSearch !== "" || tenantPlanFilter !== "all" || tenantStatusFilter !== "all";
 
-                {/* Main info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[14px] font-bold text-foreground">{t.name}</span>
-                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize"
-                      style={{ background: planBg[t.plan], color: planColors[t.plan] }}>{t.plan}</span>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold">
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: statusColors[t.status] }} />
-                      <span className="capitalize" style={{ color: statusColors[t.status] }}>{t.status}</span>
-                    </span>
-                    {t.status === "trial" && t.trialEndsAt && (
-                      <span className="text-[10px] font-medium text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
-                        Trial ends {t.trialEndsAt}
-                      </span>
+    const planChipStyle = (p: string) => ({
+      active: p === tenantPlanFilter,
+      bg:     p === tenantPlanFilter
+        ? (p === "all" ? "bg-primary text-primary-foreground" : "")
+        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground",
+    });
+
+    return (
+      <div className="space-y-5">
+        {/* Platform KPIs */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <Stat label="Total Tenants"  value={summaryStats.totalTenants} sub={`${summaryStats.activeTenants} active`} icon={Building2}    color="#6366f1" />
+          <Stat label="Total Users"    value={summaryStats.totalUsers}   sub="across all tenants"                      icon={Users}         color="#10b981" />
+          <Stat label="Workspaces"     value={summaryStats.totalWorkspaces} sub="active workspaces"                   icon={FolderOpen}    color="#f59e0b" />
+          <Stat label="Total Messages" value={summaryStats.totalMessages.toLocaleString()} sub="all time"             icon={MessageSquare} color="#8b5cf6" />
+        </div>
+
+        {/* ── Search + filter bar ─────────────────────────────────────── */}
+        <div className="rounded-xl bg-card border border-border p-3 space-y-3">
+          {/* Search input */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by name, domain, or admin email…"
+              value={tenantSearch}
+              onChange={e => setTenantSearch(e.target.value)}
+              className="w-full pl-9 pr-10 py-2 text-[13px] bg-muted/30 border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-colors"
+            />
+            {tenantSearch && (
+              <button
+                onClick={() => setTenantSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                <XCircle className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter chips row */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Plan filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Plan</span>
+              <div className="flex gap-1">
+                {PLANS.map(p => (
+                  <button key={p}
+                    onClick={() => setTenantPlanFilter(p)}
+                    className={cn(
+                      "text-[11px] font-semibold px-2.5 py-1 rounded-full capitalize transition-colors border",
+                      tenantPlanFilter === p
+                        ? "border-primary/60 text-primary-foreground"
+                        : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{t.domain} · Admin: {t.adminEmail}</p>
-
-                  {/* Metrics strip */}
-                  <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mt-3">
-                    {[
-                      { label: "Users",      value: `${t.users} / ${t.maxUsers}` },
-                      { label: "Workspaces", value: String(tWorkspaces.length) },
-                      { label: "Messages",   value: t.messages.toLocaleString() },
-                      { label: "Docs",       value: t.documents.toLocaleString() },
-                      { label: "Storage",    value: t.storage },
-                      { label: "Satisfaction", value: tSat ? `${tSat}%` : "—" },
-                    ].map(({ label, value }) => (
-                      <div key={label}>
-                        <p className="text-[10px] text-muted-foreground">{label}</p>
-                        <p className="text-[12px] font-semibold text-foreground">{value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Storage bar */}
-                  <div className="flex items-center gap-2 mt-2.5">
-                    <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{
-                        width: `${t.storageUsedPct}%`,
-                        background: t.storageUsedPct > 80 ? "#ef4444" : t.storageUsedPct > 60 ? "#f59e0b" : "#10b981"
-                      }} />
-                    </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0">{t.storage} / {t.maxStorage}</span>
-                  </div>
-                </div>
-
-                {/* CTA */}
-                <div className="shrink-0 flex flex-col items-end gap-1.5">
-                  <span className="text-[11px] font-semibold text-primary group-hover:underline whitespace-nowrap">
-                    View details →
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">Last active {t.lastActive}</span>
-                  <span className="text-[10px] text-muted-foreground">Joined {t.joinedDate}</span>
-                </div>
+                    style={tenantPlanFilter === p ? {
+                      background: p === "all" ? "hsl(var(--primary))" : planColors[p] ?? "hsl(var(--primary))",
+                      borderColor: p === "all" ? "hsl(var(--primary))" : planColors[p] ?? "hsl(var(--primary))",
+                    } : undefined}>
+                    {p === "all" ? "All plans" : p}
+                  </button>
+                ))}
               </div>
             </div>
-          );
-        })}
+
+            <div className="h-4 w-px bg-border hidden sm:block" />
+
+            {/* Status filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Status</span>
+              <div className="flex gap-1">
+                {STATUSES.map(s => (
+                  <button key={s}
+                    onClick={() => setTenantStatusFilter(s)}
+                    className={cn(
+                      "inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full capitalize transition-colors border",
+                      tenantStatusFilter === s
+                        ? "border-transparent text-primary-foreground"
+                        : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                    style={tenantStatusFilter === s ? {
+                      background: s === "all" ? "hsl(var(--primary))" : statusColors[s] ?? "hsl(var(--primary))",
+                    } : undefined}>
+                    {s !== "all" && (
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ background: tenantStatusFilter === s ? "white" : statusColors[s] ?? "#94a3b8" }} />
+                    )}
+                    {s === "all" ? "All statuses" : s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Clear all */}
+            {hasActiveFilters && (
+              <button
+                onClick={() => { setTenantSearch(""); setTenantPlanFilter("all"); setTenantStatusFilter("all"); }}
+                className="ml-auto text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+                <XCircle className="w-3.5 h-3.5" /> Clear filters
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Result count */}
+        <div className="flex items-center justify-between">
+          <p className="text-[12px] text-muted-foreground">
+            Showing <span className="font-semibold text-foreground">{filtered.length}</span> of {tenants.length} tenants
+            {hasActiveFilters && " (filtered)"}
+          </p>
+        </div>
+
+        {/* Tenant cards */}
+        <div className="space-y-2.5">
+          {filtered.length === 0 ? (
+            <div className="rounded-xl bg-card border border-border px-6 py-12 flex flex-col items-center gap-2">
+              <Search className="w-8 h-8 text-muted-foreground/30" />
+              <p className="text-sm font-medium text-foreground">No tenants match your filters</p>
+              <p className="text-xs text-muted-foreground">Try adjusting the search or filter options above</p>
+              <button
+                onClick={() => { setTenantSearch(""); setTenantPlanFilter("all"); setTenantStatusFilter("all"); }}
+                className="mt-2 text-[12px] font-semibold text-primary hover:underline">
+                Clear all filters
+              </button>
+            </div>
+          ) : filtered.map((t) => {
+            const tWorkspaces = workspaceDetails.filter(w => w.tenantId === t.id);
+            const tSessions   = chatSessions.filter(s => s.tenantId === t.id);
+            const tUp         = tSessions.reduce((acc, s) => acc + s.thumbsUp, 0);
+            const tDown       = tSessions.reduce((acc, s) => acc + s.thumbsDown, 0);
+            const tSat        = tUp + tDown > 0 ? Math.round((tUp / (tUp + tDown)) * 100) : 0;
+
+            return (
+              <div key={t.id}
+                onClick={() => selectTenant(t.id)}
+                className={cn(
+                  "group rounded-xl bg-card border border-border p-4 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all",
+                  t.status === "suspended" && "opacity-70"
+                )}>
+                <div className="flex items-start gap-3">
+                  {/* Avatar */}
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[15px] font-bold shrink-0"
+                    style={{ background: planBg[t.plan], color: planColors[t.plan] }}>
+                    {t.name.charAt(0)}
+                  </div>
+
+                  {/* Main info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[14px] font-bold text-foreground">{t.name}</span>
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize"
+                        style={{ background: planBg[t.plan], color: planColors[t.plan] }}>{t.plan}</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: statusColors[t.status] }} />
+                        <span className="capitalize" style={{ color: statusColors[t.status] }}>{t.status}</span>
+                      </span>
+                      {t.status === "trial" && t.trialEndsAt && (
+                        <span className="text-[10px] font-medium text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-full">
+                          Trial ends {t.trialEndsAt}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{t.domain} · Admin: {t.adminEmail}</p>
+
+                    {/* Metrics strip */}
+                    <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mt-3">
+                      {[
+                        { label: "Users",        value: `${t.users} / ${t.maxUsers}` },
+                        { label: "Workspaces",   value: String(tWorkspaces.length) },
+                        { label: "Messages",     value: t.messages.toLocaleString() },
+                        { label: "Docs",         value: t.documents.toLocaleString() },
+                        { label: "Storage",      value: t.storage },
+                        { label: "Satisfaction", value: tSat ? `${tSat}%` : "—" },
+                      ].map(({ label, value }) => (
+                        <div key={label}>
+                          <p className="text-[10px] text-muted-foreground">{label}</p>
+                          <p className="text-[12px] font-semibold text-foreground">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Storage bar */}
+                    <div className="flex items-center gap-2 mt-2.5">
+                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full rounded-full" style={{
+                          width: `${t.storageUsedPct}%`,
+                          background: t.storageUsedPct > 80 ? "#ef4444" : t.storageUsedPct > 60 ? "#f59e0b" : "#10b981"
+                        }} />
+                      </div>
+                      <span className="text-[10px] text-muted-foreground shrink-0">{t.storage} / {t.maxStorage}</span>
+                    </div>
+                  </div>
+
+                  {/* CTA */}
+                  <div className="shrink-0 flex flex-col items-end gap-1.5">
+                    <span className="text-[11px] font-semibold text-primary group-hover:underline whitespace-nowrap">
+                      View details →
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">Last active {t.lastActive}</span>
+                    <span className="text-[10px] text-muted-foreground">Joined {t.joinedDate}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  SECTION: TENANTS — Tenant detail (workspace list)
