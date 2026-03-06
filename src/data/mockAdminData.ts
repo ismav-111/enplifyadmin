@@ -36,15 +36,111 @@ export const systemMetricsData = generateDailyData(30, 240, 80).map((d) => ({
   errorRate: parseFloat((Math.random() * 0.8).toFixed(2)),
 }));
 
-export const topWorkspaces = [
-  { name: "Marketing Team", type: "shared", users: 14, messages: 5230, documents: 312, storage: "2.4 GB" },
-  { name: "Engineering Hub", type: "organization", users: 28, messages: 4810, documents: 891, storage: "8.1 GB" },
-  { name: "Sales Operations", type: "shared", users: 9, messages: 3920, documents: 214, storage: "1.2 GB" },
-  { name: "Product Research", type: "shared", users: 6, messages: 2740, documents: 178, storage: "0.9 GB" },
-  { name: "Executive Suite", type: "organization", users: 5, messages: 1980, documents: 56, storage: "0.4 GB" },
-  { name: "My Workspace", type: "personal", users: 1, messages: 1240, documents: 43, storage: "0.3 GB" },
-  { name: "Dev Sandbox", type: "personal", users: 1, messages: 980, documents: 28, storage: "0.2 GB" },
+// ── Data Sources ─────────────────────────────────────────────────────────────
+export type DataSourceStatus = "active" | "syncing" | "error" | "inactive";
+
+export interface DataSource {
+  id: string;
+  name: string;
+  type: string;
+  logo: string;
+  status: DataSourceStatus;
+  documents: number;
+  lastSync: string;
+  syncFrequency: string;
+  storageUsed: string;
+  queriesThisMonth: number;
+  errorCount: number;
+  workspace: string;
+}
+
+export const dataSources: DataSource[] = [
+  { id: "ds-1", name: "SharePoint Corp", type: "SharePoint", logo: "sharepoint", status: "active", documents: 1248, lastSync: "3 min ago", syncFrequency: "Every 15 min", storageUsed: "4.2 GB", queriesThisMonth: 12840, errorCount: 0, workspace: "Engineering Hub" },
+  { id: "ds-2", name: "Snowflake DW", type: "Snowflake", logo: "snowflake", status: "active", documents: 214, lastSync: "1 hr ago", syncFrequency: "Every 6 hours", storageUsed: "5.6 GB", queriesThisMonth: 3180, errorCount: 0, workspace: "Engineering Hub" },
+  { id: "ds-3", name: "ServiceNow ITSM", type: "ServiceNow", logo: "servicenow", status: "active", documents: 890, lastSync: "12 min ago", syncFrequency: "Every 30 min", storageUsed: "0.7 GB", queriesThisMonth: 2890, errorCount: 1, workspace: "Engineering Hub" },
+  { id: "ds-4", name: "Google Drive – Mktg", type: "Google Drive", logo: "google-drive", status: "active", documents: 632, lastSync: "8 min ago", syncFrequency: "Every 30 min", storageUsed: "1.8 GB", queriesThisMonth: 8210, errorCount: 2, workspace: "Marketing Team" },
+  { id: "ds-5", name: "SharePoint – Mktg", type: "SharePoint", logo: "sharepoint", status: "syncing", documents: 341, lastSync: "Syncing now", syncFrequency: "Every hour", storageUsed: "0.9 GB", queriesThisMonth: 3420, errorCount: 0, workspace: "Marketing Team" },
+  { id: "ds-6", name: "Salesforce CRM", type: "Salesforce", logo: "salesforce", status: "syncing", documents: 4820, lastSync: "Syncing now", syncFrequency: "Every hour", storageUsed: "2.1 GB", queriesThisMonth: 6430, errorCount: 0, workspace: "Sales Operations" },
+  { id: "ds-7", name: "Zoho CRM", type: "Zoho", logo: "zoho", status: "active", documents: 445, lastSync: "22 min ago", syncFrequency: "Every hour", storageUsed: "0.4 GB", queriesThisMonth: 980, errorCount: 0, workspace: "Sales Operations" },
+  { id: "ds-8", name: "OneDrive – Legal", type: "OneDrive", logo: "onedrive", status: "error", documents: 312, lastSync: "3 hr ago", syncFrequency: "Every hour", storageUsed: "0.9 GB", queriesThisMonth: 1240, errorCount: 14, workspace: "Executive Suite" },
+  { id: "ds-9", name: "SharePoint – Exec", type: "SharePoint", logo: "sharepoint", status: "active", documents: 56, lastSync: "45 min ago", syncFrequency: "Every 2 hours", storageUsed: "0.2 GB", queriesThisMonth: 620, errorCount: 0, workspace: "Executive Suite" },
+  { id: "ds-10", name: "Google Drive – Product", type: "Google Drive", logo: "google-drive", status: "active", documents: 178, lastSync: "18 min ago", syncFrequency: "Every 30 min", storageUsed: "0.6 GB", queriesThisMonth: 2100, errorCount: 0, workspace: "Product Research" },
+  { id: "ds-11", name: "Snowflake Analytics", type: "Snowflake", logo: "snowflake", status: "active", documents: 92, lastSync: "2 hr ago", syncFrequency: "Every 12 hours", storageUsed: "1.2 GB", queriesThisMonth: 840, errorCount: 0, workspace: "Product Research" },
+  { id: "ds-12", name: "SQL Prod DB", type: "SQL Database", logo: "sql-database", status: "inactive", documents: 0, lastSync: "2 days ago", syncFrequency: "Manual", storageUsed: "0 GB", queriesThisMonth: 0, errorCount: 0, workspace: "Dev Sandbox" },
 ];
+
+export const dataSourceQueryTrend = generateDailyData(30, 1200, 400).map((d) => ({
+  ...d,
+  queries: d.value,
+  errors: Math.max(0, Math.round(Math.random() * 6)),
+}));
+
+export const dataSourceStats = {
+  total: 12,
+  active: 8,
+  syncing: 2,
+  error: 1,
+  inactive: 1,
+  totalDocuments: 9228,
+  totalStorage: "18.6 GB",
+  totalQueriesMonth: 42750,
+};
+
+// ── Workspace detail (per-workspace overview for admin) ───────────────────────
+export interface WorkspaceDetail {
+  id: string;
+  name: string;
+  type: "personal" | "shared" | "organization";
+  users: number;
+  messages: number;
+  documents: number;
+  storage: string;
+  sessions: number;
+  lastActive: string;
+  dataSourceIds: string[];
+}
+
+export const workspaceDetails: WorkspaceDetail[] = [
+  {
+    id: "ws-1", name: "Engineering Hub", type: "organization",
+    users: 28, messages: 4810, documents: 2352, storage: "10.5 GB", sessions: 184, lastActive: "2 min ago",
+    dataSourceIds: ["ds-1", "ds-2", "ds-3"],
+  },
+  {
+    id: "ws-2", name: "Marketing Team", type: "shared",
+    users: 14, messages: 5230, documents: 973, storage: "2.7 GB", sessions: 97, lastActive: "5 min ago",
+    dataSourceIds: ["ds-4", "ds-5"],
+  },
+  {
+    id: "ws-3", name: "Sales Operations", type: "shared",
+    users: 9, messages: 3920, documents: 5265, storage: "2.5 GB", sessions: 73, lastActive: "18 min ago",
+    dataSourceIds: ["ds-6", "ds-7"],
+  },
+  {
+    id: "ws-4", name: "Executive Suite", type: "organization",
+    users: 5, messages: 1980, documents: 368, storage: "1.1 GB", sessions: 41, lastActive: "1 hr ago",
+    dataSourceIds: ["ds-8", "ds-9"],
+  },
+  {
+    id: "ws-5", name: "Product Research", type: "shared",
+    users: 6, messages: 2740, documents: 270, storage: "1.8 GB", sessions: 62, lastActive: "34 min ago",
+    dataSourceIds: ["ds-10", "ds-11"],
+  },
+  {
+    id: "ws-6", name: "My Workspace", type: "personal",
+    users: 1, messages: 1240, documents: 43, storage: "0.3 GB", sessions: 28, lastActive: "3 hr ago",
+    dataSourceIds: [],
+  },
+  {
+    id: "ws-7", name: "Dev Sandbox", type: "personal",
+    users: 1, messages: 980, documents: 28, storage: "0.2 GB", sessions: 19, lastActive: "2 days ago",
+    dataSourceIds: ["ds-12"],
+  },
+];
+
+export const topWorkspaces = workspaceDetails.map(w => ({
+  name: w.name, type: w.type, users: w.users, messages: w.messages, documents: w.documents, storage: w.storage,
+}));
 
 export const recentActivity = [
   { id: "1", user: "alice@company.com", action: "Created workspace", target: "Q1 Planning", time: "2 min ago", type: "workspace" },
@@ -72,52 +168,6 @@ export const summaryStats = {
   avgResponseMs: 834,
   errorRate: 0.34,
   uptime: 99.97,
-};
-
-// ── Data Sources ─────────────────────────────────────────────────────────────
-export type DataSourceStatus = "active" | "syncing" | "error" | "inactive";
-
-export interface DataSource {
-  id: string;
-  name: string;
-  type: string;
-  logo: string; // icon key
-  status: DataSourceStatus;
-  documents: number;
-  lastSync: string;
-  syncFrequency: string;
-  storageUsed: string;
-  queriesThisMonth: number;
-  errorCount: number;
-  workspace: string;
-}
-
-export const dataSources: DataSource[] = [
-  { id: "ds-1", name: "SharePoint Corp", type: "SharePoint", logo: "sharepoint", status: "active", documents: 1248, lastSync: "3 min ago", syncFrequency: "Every 15 min", storageUsed: "4.2 GB", queriesThisMonth: 12840, errorCount: 0, workspace: "Engineering Hub" },
-  { id: "ds-2", name: "Google Drive – Mktg", type: "Google Drive", logo: "google-drive", status: "active", documents: 632, lastSync: "8 min ago", syncFrequency: "Every 30 min", storageUsed: "1.8 GB", queriesThisMonth: 8210, errorCount: 2, workspace: "Marketing Team" },
-  { id: "ds-3", name: "Salesforce CRM", type: "Salesforce", logo: "salesforce", status: "syncing", documents: 4820, lastSync: "Syncing now", syncFrequency: "Every hour", storageUsed: "2.1 GB", queriesThisMonth: 6430, errorCount: 0, workspace: "Sales Operations" },
-  { id: "ds-4", name: "Snowflake DW", type: "Snowflake", logo: "snowflake", status: "active", documents: 214, lastSync: "1 hr ago", syncFrequency: "Every 6 hours", storageUsed: "5.6 GB", queriesThisMonth: 3180, errorCount: 0, workspace: "Engineering Hub" },
-  { id: "ds-5", name: "OneDrive – Legal", type: "OneDrive", logo: "onedrive", status: "error", documents: 312, lastSync: "3 hr ago", syncFrequency: "Every hour", storageUsed: "0.9 GB", queriesThisMonth: 1240, errorCount: 14, workspace: "Executive Suite" },
-  { id: "ds-6", name: "ServiceNow ITSM", type: "ServiceNow", logo: "servicenow", status: "active", documents: 890, lastSync: "12 min ago", syncFrequency: "Every 30 min", storageUsed: "0.7 GB", queriesThisMonth: 2890, errorCount: 1, workspace: "Engineering Hub" },
-  { id: "ds-7", name: "SQL Prod DB", type: "SQL Database", logo: "sql-database", status: "inactive", documents: 0, lastSync: "2 days ago", syncFrequency: "Manual", storageUsed: "0 GB", queriesThisMonth: 0, errorCount: 0, workspace: "Dev Sandbox" },
-  { id: "ds-8", name: "Zoho CRM", type: "Zoho", logo: "zoho", status: "active", documents: 445, lastSync: "22 min ago", syncFrequency: "Every hour", storageUsed: "0.4 GB", queriesThisMonth: 980, errorCount: 0, workspace: "Sales Operations" },
-];
-
-export const dataSourceQueryTrend = generateDailyData(30, 1200, 400).map((d) => ({
-  ...d,
-  queries: d.value,
-  errors: Math.max(0, Math.round(Math.random() * 6)),
-}));
-
-export const dataSourceStats = {
-  total: 8,
-  active: 5,
-  syncing: 1,
-  error: 1,
-  inactive: 1,
-  totalDocuments: 8561,
-  totalStorage: "15.7 GB",
-  totalQueriesMonth: 35770,
 };
 
 // ── Search analytics ─────────────────────────────────────────────────────────
