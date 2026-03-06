@@ -8,6 +8,7 @@ import {
   RefreshCw, AlertTriangle, CheckCircle2, Layers,
   HardDrive, BarChart3, Star, XCircle
 } from "lucide-react";
+import enplifyLogo from "@/assets/enplify-logo.png";
 import { Badge } from "@/components/ui/badge";
 import { AdminChart } from "@/components/admin/AdminChart";
 import { DateRangePicker } from "@/components/admin/DateRangePicker";
