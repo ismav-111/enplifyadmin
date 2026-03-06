@@ -6,8 +6,15 @@ import {
   Database, LogOut, LayoutDashboard, ChevronLeft,
   ChevronRight, TrendingUp, ArrowUpRight, Search,
   RefreshCw, AlertTriangle, CheckCircle2, Layers,
-  HardDrive, BarChart3, Star, XCircle
+  HardDrive, BarChart3, Star, XCircle, Settings, User
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import enplifyLogo from "@/assets/enplify-logo.png";
 import { Badge } from "@/components/ui/badge";
 import { AdminChart } from "@/components/admin/AdminChart";
@@ -598,9 +605,32 @@ const Admin = () => {
           <div className="flex items-center gap-3">
             <DateRangePicker value={dateRange} onChange={setDateRange} />
             <div className="flex items-center gap-2 pl-3 border-l border-border">
-              <div className="w-7 h-7 rounded-full bg-indigo-500/20 flex items-center justify-center">
-                <span className="text-xs font-bold text-indigo-500">A</span>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center hover:bg-primary/30 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2">
+                    <span className="text-xs font-bold text-primary">A</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <div className="px-3 py-2 border-b border-border">
+                    <p className="text-sm font-medium text-foreground">Admin User</p>
+                    <p className="text-xs text-muted-foreground">admin@enplify.ai</p>
+                  </div>
+                  <DropdownMenuItem onClick={() => navigate("/settings")} className="gap-2 cursor-pointer">
+                    <Settings className="w-4 h-4" />
+                    Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="gap-2 cursor-pointer">
+                    <User className="w-4 h-4" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate("/")} className="gap-2 text-destructive focus:text-destructive cursor-pointer">
+                    <LogOut className="w-4 h-4" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </header>
