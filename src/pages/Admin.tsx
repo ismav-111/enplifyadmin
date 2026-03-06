@@ -6,8 +6,15 @@ import {
   Database, LogOut, LayoutDashboard, ChevronLeft,
   ChevronRight, TrendingUp, ArrowUpRight, Search,
   RefreshCw, AlertTriangle, CheckCircle2, Layers,
-  HardDrive, BarChart3, Star, XCircle
+  HardDrive, BarChart3, Star, XCircle, Settings, User
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import enplifyLogo from "@/assets/enplify-logo.png";
 import { Badge } from "@/components/ui/badge";
 import { AdminChart } from "@/components/admin/AdminChart";
