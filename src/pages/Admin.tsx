@@ -1013,10 +1013,10 @@ const Admin = () => {
                 </div>
                 <div className="flex gap-1.5">
                   {(["all","positive","negative"] as const).map(f => (
-                    <button key={f} onClick={() => setFbFilter(f)}
+                    <button key={f} onClick={() => setWsFeedbackFilter(f)}
                       className={cn(
                         "inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full capitalize transition-colors border",
-                        fbFilter === f
+                        wsFeedbackFilter === f
                           ? f === "positive" ? "bg-emerald-500 border-emerald-500 text-white"
                             : f === "negative" ? "bg-rose-500 border-rose-500 text-white"
                             : "bg-primary border-primary text-primary-foreground"
