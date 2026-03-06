@@ -255,6 +255,107 @@ export const chatSessions: ChatSession[] = [
   ...makeSessions("ws-9", "t-4", ["sam@healthbridge.co"], 4),
 ];
 
+// ── User Feedback Messages ────────────────────────────────────────────────────
+export type FeedbackType = "positive" | "negative";
+
+export interface FeedbackMessage {
+  id: string;
+  sessionId: string;
+  workspaceId: string;
+  tenantId: string;
+  user: string;
+  feedbackType: FeedbackType;
+  aiMessageSnippet: string; // the AI message that was rated
+  userMessage: string;      // the user query that triggered it
+  comment: string;          // the written feedback left by user
+  submittedAt: string;
+  sessionTitle: string;
+}
+
+const positiveComments = [
+  "Very accurate and saved me a lot of time!",
+  "Exactly what I was looking for, great answer.",
+  "Clear and well-structured response.",
+  "The citations were spot-on. Very helpful.",
+  "This answered my question better than I expected.",
+  "Great summary, very concise.",
+  "Perfect — pulled the right data from SharePoint.",
+  "Love how it referenced the right policy document.",
+  "Nailed it! Matched our internal workflow exactly.",
+  "Excellent breakdown of the report.",
+];
+
+const negativeComments = [
+  "The answer was outdated, please check the source.",
+  "Didn't pull from the right data source.",
+  "Response was too vague, needed more detail.",
+  "Incorrect figures — wrong quarter referenced.",
+  "The document it cited is not the latest version.",
+  "It missed the key point of my question.",
+  "Too generic, not specific to our org.",
+  "The table data looks wrong.",
+  "It hallucinated a policy that doesn't exist.",
+  "Slow response and incomplete answer.",
+];
+
+const aiSnippets = [
+  "Based on the Q3 revenue report, total revenue was $4.2M, reflecting an 8% YoY increase...",
+  "The onboarding process consists of 5 stages: orientation, system access, training, shadowing, and sign-off...",
+  "According to the product roadmap document, the Q2 milestone includes API v2 and SSO integration...",
+  "The IT escalation policy requires P1 tickets to be acknowledged within 15 minutes...",
+  "Sales pipeline as of last sync shows 42 open deals totalling $1.8M in potential ARR...",
+  "The HR leave policy allows 25 days annual leave, accrued monthly from start date...",
+  "Snowflake query returned 3 matching records for the date range specified...",
+  "SharePoint document 'compliance-checklist-2025.docx' was last modified on Feb 12...",
+  "The contract clause in section 8.2 outlines termination conditions as follows...",
+  "Customer churn analysis shows a 4.2% monthly churn rate across the enterprise tier...",
+];
+
+const userQueries = [
+  "What was our Q3 revenue?",
+  "Can you explain the onboarding steps?",
+  "What's on the product roadmap for Q2?",
+  "How do I escalate an IT ticket?",
+  "Show me the current sales pipeline",
+  "What is our leave policy?",
+  "Run a Snowflake query for last month",
+  "Find the latest compliance checklist",
+  "Summarise the vendor contract",
+  "What's our churn rate this quarter?",
+];
+
+function makeFeedback(
+  sessions: ChatSession[],
+  countPerSession: number
+): FeedbackMessage[] {
+  const msgs: FeedbackMessage[] = [];
+  sessions.forEach((sess) => {
+    const count = Math.min(countPerSession, Math.floor(Math.random() * 3) + 1);
+    for (let i = 0; i < count; i++) {
+      const isPositive = Math.random() > 0.3;
+      const idx = Math.floor(Math.random() * 10);
+      msgs.push({
+        id: `fb-${sess.id}-${i}`,
+        sessionId: sess.id,
+        workspaceId: sess.workspaceId,
+        tenantId: sess.tenantId,
+        user: sess.user,
+        feedbackType: isPositive ? "positive" : "negative",
+        aiMessageSnippet: aiSnippets[idx],
+        userMessage: userQueries[idx],
+        comment: isPositive
+          ? positiveComments[Math.floor(Math.random() * positiveComments.length)]
+          : negativeComments[Math.floor(Math.random() * negativeComments.length)],
+        submittedAt: sess.startedAt,
+        sessionTitle: sess.title,
+      });
+    }
+  });
+  return msgs;
+}
+
+export const feedbackMessages: FeedbackMessage[] = makeFeedback(chatSessions, 2);
+
 // ── Summary stats ─────────────────────────────────────────────────────────────
 export const summaryStats = {
   totalTenants: 5,
