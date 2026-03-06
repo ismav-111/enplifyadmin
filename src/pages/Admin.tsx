@@ -134,6 +134,16 @@ const Admin = () => {
   const [section, setSection] = useState<Section>("overview");
   const [collapsed, setCollapsed] = useState(false);
   const [dateRange, setDateRange] = useState<{ preset: number | null; range: DateRange | undefined }>({ preset: 30, range: undefined });
+  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
+  const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(new Set());
+
+  const toggleWorkspace = (id: string) => {
+    setExpandedWorkspaces(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   const days = dateRange.preset ?? 30;
   const userData  = sliceByDays(userGrowthData, days);
