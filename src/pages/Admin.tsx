@@ -162,6 +162,9 @@ const Admin = () => {
   const [tenantPlanFilter, setTenantPlanFilter] = useState<string>("all");
   const [tenantStatusFilter, setTenantStatusFilter] = useState<string>("all");
 
+  // Workspace feedback filter
+  const [wsFeedbackFilter, setWsFeedbackFilter] = useState<"all" | "positive" | "negative">("all");
+
   const days = dateRange.preset ?? 30;
   const userData = sliceByDays(userGrowthData, days);
   const msgData  = sliceByDays(messageVolumeData, days);
