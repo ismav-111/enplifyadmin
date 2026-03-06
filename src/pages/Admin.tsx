@@ -24,6 +24,7 @@ import {
   workspaceUsageData, systemMetricsData, topWorkspaces,
   recentActivity, dataSources, dataSourceQueryTrend,
   dataSourceStats, topSearchQueries, contentQualityData,
+  workspaceDetails,
   type DataSource,
 } from "@/data/mockAdminData";
 import { cn } from "@/lib/utils";
@@ -164,7 +165,7 @@ const Admin = () => {
 
             {/* Second KPI row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <Stat label="Data Sources"    value={`${dataSourceStats.active} / ${dataSourceStats.total}`} sub="active connectors" icon={Layers}  color="#8b5cf6" />
+              <Stat label="Data Sources"    value={`${dataSourceStats.active} / ${dataSourceStats.total}`} sub={`${dataSourceStats.error} error · ${dataSourceStats.syncing} syncing`} icon={Layers}  color="#8b5cf6" />
               <Stat label="Storage Used"    value={summaryStats.storageUsed}                               sub="across all sources" icon={HardDrive} color="#f59e0b" />
               <Stat label="Uptime"          value={`${summaryStats.uptime}%`}                              sub="30-day SLA"        icon={ShieldCheck} color="#10b981" />
               <Stat label="Avg AI Response" value={`${summaryStats.avgResponseMs} ms`}                    sub="last 30 days"      icon={Clock}       color="#06b6d4" />
@@ -420,45 +421,105 @@ const Admin = () => {
       case "workspaces":
         return (
           <div className="space-y-5">
+            {/* Summary KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <Stat label="Total Workspaces" value={summaryStats.totalWorkspaces} trend={summaryStats.workspacesGrowthPct} icon={FolderOpen} color="#6366f1" />
               <Stat label="Documents"        value={summaryStats.totalDocuments.toLocaleString()} sub="all workspaces" icon={FileText}  color="#f59e0b" />
-              <Stat label="Storage Used"     value={summaryStats.storageUsed}                     sub="total"         icon={Database}   color="#10b981" />
-              <Stat label="Shared Spaces"    value="42"                                            sub="team workspaces" icon={Users}    color="#8b5cf6" />
+              <Stat label="Storage Used"     value={summaryStats.storageUsed} sub="total" icon={Database} color="#10b981" />
+              <Stat label="Shared Spaces"    value="42" sub="team workspaces" icon={Users} color="#8b5cf6" />
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <CC title="Workspace Distribution" sub="Workspaces and documents by type">
-                <AdminChart data={workspaceUsageData} type="bar" height={200} xKey="name" dataKeys={[{ key: "workspaces", label: "Workspaces", color: P }, { key: "documents", label: "Documents", color: A }]} />
-              </CC>
-              <div className="rounded-xl bg-card border border-border overflow-hidden">
-                <div className="px-4 py-3 border-b border-border bg-muted/20">
-                  <p className="text-[13px] font-semibold text-foreground">Top Workspaces by Usage</p>
-                </div>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      {["Workspace","Users","Msgs","Docs","Storage"].map((h, i) => (
-                        <th key={h} className={cn("px-4 py-2.5 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide", i >= 1 && "text-right")}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topWorkspaces.map((ws, i) => (
-                      <tr key={ws.name} className={cn("border-b border-border/60 last:border-0 hover:bg-muted/20 transition-colors", i % 2 === 0 && "bg-muted/10")}>
-                        <td className="px-4 py-2.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-foreground text-[13px] truncate max-w-[110px]">{ws.name}</span>
-                            <Badge variant="secondary" className="text-[10px] px-1 py-0 capitalize">{ws.type}</Badge>
+
+            {/* Distribution chart */}
+            <CC title="Workspace Distribution" sub="Workspaces, documents and messages by type">
+              <AdminChart data={workspaceUsageData} type="bar" height={180} xKey="name" dataKeys={[{ key: "workspaces", label: "Workspaces", color: P }, { key: "documents", label: "Documents", color: A }, { key: "messages", label: "Messages", color: G }]} />
+            </CC>
+
+            {/* Per-workspace detail cards */}
+            <div>
+              <p className="text-[13px] font-semibold text-foreground mb-3">Workspace Overview</p>
+              <div className="space-y-3">
+                {workspaceDetails.map((ws) => {
+                  const wsSources = dataSources.filter(ds => ws.dataSourceIds.includes(ds.id));
+                  const typeColor = { personal: "#6366f1", shared: "#10b981", organization: "#f59e0b" }[ws.type];
+                  return (
+                    <div key={ws.id} className="rounded-xl bg-card border border-border overflow-hidden">
+                      {/* Workspace header */}
+                      <div className="px-4 py-3 flex items-center justify-between bg-muted/20 border-b border-border">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-1.5 rounded-lg shrink-0" style={{ background: `${typeColor}18` }}>
+                            <FolderOpen className="w-3.5 h-3.5" style={{ color: typeColor }} />
                           </div>
-                        </td>
-                        <td className="px-4 py-2.5 text-right text-[13px] text-muted-foreground">{ws.users}</td>
-                        <td className="px-4 py-2.5 text-right text-[13px] text-muted-foreground">{ws.messages.toLocaleString()}</td>
-                        <td className="px-4 py-2.5 text-right text-[13px] text-muted-foreground">{ws.documents}</td>
-                        <td className="px-4 py-2.5 text-right text-[13px] text-muted-foreground">{ws.storage}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          <div>
+                            <p className="text-[13px] font-semibold text-foreground leading-none">{ws.name}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">Last active {ws.lastActive}</p>
+                          </div>
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 capitalize ml-1">{ws.type}</Badge>
+                        </div>
+                        {/* Quick stats */}
+                        <div className="flex items-center gap-5">
+                          {[
+                            { icon: Users,       label: "Users",    value: ws.users },
+                            { icon: MessageSquare, label: "Messages", value: ws.messages.toLocaleString() },
+                            { icon: FileText,    label: "Docs",     value: ws.documents.toLocaleString() },
+                            { icon: HardDrive,   label: "Storage",  value: ws.storage },
+                            { icon: BarChart3,   label: "Sessions", value: ws.sessions },
+                          ].map(({ icon: Icon, label, value }) => (
+                            <div key={label} className="text-center hidden sm:block">
+                              <p className="text-[10px] text-muted-foreground">{label}</p>
+                              <p className="text-[13px] font-semibold text-foreground">{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Data sources for this workspace */}
+                      {wsSources.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-border/60">
+                                <th className="px-4 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Data Source</th>
+                                <th className="px-4 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Type</th>
+                                <th className="px-4 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
+                                <th className="px-4 py-2 text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Docs</th>
+                                <th className="px-4 py-2 text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Storage</th>
+                                <th className="px-4 py-2 text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Queries/mo</th>
+                                <th className="px-4 py-2 text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Last Sync</th>
+                                <th className="px-4 py-2 text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Errors</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {wsSources.map((ds, i) => (
+                                <tr key={ds.id} className={cn("border-b border-border/40 last:border-0 hover:bg-muted/20 transition-colors", i % 2 === 0 && "bg-muted/5")}>
+                                  <td className="px-4 py-2.5">
+                                    <div className="flex items-center gap-2">
+                                      <img src={LOGO_MAP[ds.logo]} alt={ds.type} className="w-4 h-4 shrink-0 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                                      <span className="text-[12px] font-medium text-foreground truncate">{ds.name}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2.5 text-[11px] text-muted-foreground">{ds.type}</td>
+                                  <td className="px-4 py-2.5"><StatusBadge s={ds.status} /></td>
+                                  <td className="px-4 py-2.5 text-right text-[12px] text-muted-foreground">{ds.documents.toLocaleString()}</td>
+                                  <td className="px-4 py-2.5 text-right text-[12px] text-muted-foreground">{ds.storageUsed}</td>
+                                  <td className="px-4 py-2.5 text-right text-[12px] text-muted-foreground">{ds.queriesThisMonth.toLocaleString()}</td>
+                                  <td className="px-4 py-2.5 text-right text-[11px] text-muted-foreground whitespace-nowrap">{ds.lastSync}</td>
+                                  <td className="px-4 py-2.5 text-right">
+                                    {ds.errorCount > 0
+                                      ? <span className="text-[12px] font-bold text-rose-500">{ds.errorCount}</span>
+                                      : <span className="text-[12px] font-bold text-emerald-500">—</span>
+                                    }
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="px-4 py-3 text-[12px] text-muted-foreground italic">No data sources connected</div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
