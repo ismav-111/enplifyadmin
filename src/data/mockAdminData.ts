@@ -1,6 +1,5 @@
 import { subDays, format } from "date-fns";
 
-// Generate daily data points for the past N days
 function generateDailyData(days: number, base: number, variance: number) {
   return Array.from({ length: days }, (_, i) => {
     const date = subDays(new Date(), days - 1 - i);
@@ -74,3 +73,66 @@ export const summaryStats = {
   errorRate: 0.34,
   uptime: 99.97,
 };
+
+// ── Data Sources ─────────────────────────────────────────────────────────────
+export type DataSourceStatus = "active" | "syncing" | "error" | "inactive";
+
+export interface DataSource {
+  id: string;
+  name: string;
+  type: string;
+  logo: string; // icon key
+  status: DataSourceStatus;
+  documents: number;
+  lastSync: string;
+  syncFrequency: string;
+  storageUsed: string;
+  queriesThisMonth: number;
+  errorCount: number;
+  workspace: string;
+}
+
+export const dataSources: DataSource[] = [
+  { id: "ds-1", name: "SharePoint Corp", type: "SharePoint", logo: "sharepoint", status: "active", documents: 1248, lastSync: "3 min ago", syncFrequency: "Every 15 min", storageUsed: "4.2 GB", queriesThisMonth: 12840, errorCount: 0, workspace: "Engineering Hub" },
+  { id: "ds-2", name: "Google Drive – Mktg", type: "Google Drive", logo: "google-drive", status: "active", documents: 632, lastSync: "8 min ago", syncFrequency: "Every 30 min", storageUsed: "1.8 GB", queriesThisMonth: 8210, errorCount: 2, workspace: "Marketing Team" },
+  { id: "ds-3", name: "Salesforce CRM", type: "Salesforce", logo: "salesforce", status: "syncing", documents: 4820, lastSync: "Syncing now", syncFrequency: "Every hour", storageUsed: "2.1 GB", queriesThisMonth: 6430, errorCount: 0, workspace: "Sales Operations" },
+  { id: "ds-4", name: "Snowflake DW", type: "Snowflake", logo: "snowflake", status: "active", documents: 214, lastSync: "1 hr ago", syncFrequency: "Every 6 hours", storageUsed: "5.6 GB", queriesThisMonth: 3180, errorCount: 0, workspace: "Engineering Hub" },
+  { id: "ds-5", name: "OneDrive – Legal", type: "OneDrive", logo: "onedrive", status: "error", documents: 312, lastSync: "3 hr ago", syncFrequency: "Every hour", storageUsed: "0.9 GB", queriesThisMonth: 1240, errorCount: 14, workspace: "Executive Suite" },
+  { id: "ds-6", name: "ServiceNow ITSM", type: "ServiceNow", logo: "servicenow", status: "active", documents: 890, lastSync: "12 min ago", syncFrequency: "Every 30 min", storageUsed: "0.7 GB", queriesThisMonth: 2890, errorCount: 1, workspace: "Engineering Hub" },
+  { id: "ds-7", name: "SQL Prod DB", type: "SQL Database", logo: "sql-database", status: "inactive", documents: 0, lastSync: "2 days ago", syncFrequency: "Manual", storageUsed: "0 GB", queriesThisMonth: 0, errorCount: 0, workspace: "Dev Sandbox" },
+  { id: "ds-8", name: "Zoho CRM", type: "Zoho", logo: "zoho", status: "active", documents: 445, lastSync: "22 min ago", syncFrequency: "Every hour", storageUsed: "0.4 GB", queriesThisMonth: 980, errorCount: 0, workspace: "Sales Operations" },
+];
+
+export const dataSourceQueryTrend = generateDailyData(30, 1200, 400).map((d) => ({
+  ...d,
+  queries: d.value,
+  errors: Math.max(0, Math.round(Math.random() * 6)),
+}));
+
+export const dataSourceStats = {
+  total: 8,
+  active: 5,
+  syncing: 1,
+  error: 1,
+  inactive: 1,
+  totalDocuments: 8561,
+  totalStorage: "15.7 GB",
+  totalQueriesMonth: 35770,
+};
+
+// ── Search analytics ─────────────────────────────────────────────────────────
+export const topSearchQueries = [
+  { query: "quarterly revenue report", count: 482, avgResults: 8.2 },
+  { query: "onboarding process", count: 374, avgResults: 12.1 },
+  { query: "product roadmap 2025", count: 291, avgResults: 5.4 },
+  { query: "sales pipeline update", count: 263, avgResults: 9.8 },
+  { query: "IT ticket escalation policy", count: 218, avgResults: 4.1 },
+  { query: "leave policy HR", count: 197, avgResults: 7.3 },
+];
+
+// ── Content quality ──────────────────────────────────────────────────────────
+export const contentQualityData = [
+  { name: "Answered", value: 84 },
+  { name: "Partial", value: 11 },
+  { name: "No Answer", value: 5 },
+];

@@ -4,49 +4,60 @@ import {
   Users, MessageSquare, FolderOpen, FileText,
   Activity, Server, Zap, Clock, ShieldCheck,
   Database, LogOut, LayoutDashboard, ChevronLeft,
-  ChevronRight, TrendingUp, ArrowUpRight
+  ChevronRight, TrendingUp, ArrowUpRight, Search,
+  RefreshCw, AlertTriangle, CheckCircle2, Layers,
+  HardDrive, BarChart3, Star, XCircle
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AdminChart } from "@/components/admin/AdminChart";
 import { DateRangePicker } from "@/components/admin/DateRangePicker";
 import {
-  summaryStats,
-  userGrowthData,
-  messageVolumeData,
-  workspaceUsageData,
-  systemMetricsData,
-  topWorkspaces,
-  recentActivity,
+  summaryStats, userGrowthData, messageVolumeData,
+  workspaceUsageData, systemMetricsData, topWorkspaces,
+  recentActivity, dataSources, dataSourceQueryTrend,
+  dataSourceStats, topSearchQueries, contentQualityData,
+  type DataSource,
 } from "@/data/mockAdminData";
 import { cn } from "@/lib/utils";
-import enplifyLogo from "@/assets/enplify-logo.png";
 import type { DateRange } from "react-day-picker";
 
-type Section = "overview" | "users" | "chat" | "workspaces" | "system";
+// ── logo imports ────────────────────────────────────────────────────────────
+import sharepoint from "@/assets/logos/sharepoint.svg";
+import googleDrive from "@/assets/logos/google-drive.svg";
+import salesforce from "@/assets/logos/salesforce.svg";
+import snowflake from "@/assets/logos/snowflake.svg";
+import onedrive from "@/assets/logos/onedrive.svg";
+import servicenow from "@/assets/logos/servicenow.svg";
+import sqlDatabase from "@/assets/logos/sql-database.svg";
+import zoho from "@/assets/logos/zoho.svg";
 
-const NAV: { id: Section; label: string; icon: React.ElementType; badge?: number }[] = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "users", label: "Users & Activity", icon: Users },
-  { id: "chat", label: "Chat & Messages", icon: MessageSquare, badge: 4 },
-  { id: "workspaces", label: "Workspaces & Docs", icon: FolderOpen },
-  { id: "system", label: "System & API", icon: Server },
-];
-
-const activityTypeIcon: Record<string, React.ElementType> = {
-  workspace: FolderOpen,
-  document: FileText,
-  chat: MessageSquare,
-  user: Users,
-  api: Zap,
+const LOGO_MAP: Record<string, string> = {
+  sharepoint, "google-drive": googleDrive, salesforce, snowflake,
+  onedrive, servicenow, "sql-database": sqlDatabase, zoho,
 };
 
-const activityColors: Record<string, string> = {
-  workspace: "#6366f1",
-  document: "#f59e0b",
-  chat: "#10b981",
-  user: "#8b5cf6",
-  api: "#06b6d4",
+type Section = "overview" | "users" | "chat" | "workspaces" | "datasources" | "system";
+
+const NAV: { id: Section; label: string; icon: React.ElementType; badge?: number }[] = [
+  { id: "overview",    label: "Overview",           icon: LayoutDashboard },
+  { id: "users",       label: "Users & Activity",   icon: Users },
+  { id: "chat",        label: "Chat & Messages",     icon: MessageSquare },
+  { id: "datasources", label: "Data Sources",        icon: Layers, badge: 1 },
+  { id: "workspaces",  label: "Workspaces & Docs",  icon: FolderOpen },
+  { id: "system",      label: "System & API",        icon: Server },
+];
+
+// WCAG AA sidebar colour tokens (all ≥4.5:1 on #0d1117 bg)
+const SB = {
+  bg:        "#0d1117",
+  border:    "#1e2837",
+  label:     "#94a3b8",   // slate-400  – 7.5:1
+  nav:       "#c4cdd9",   // slate-300  – 10:1
+  navHover:  "#e2e8f0",   // slate-200  – 13:1
+  navActive: "#e0eaff",   // indigo-100 – 13.5:1
+  activeBg:  "rgba(99,102,241,0.18)",
+  activeBar: "#818cf8",   // indigo-400
+  mutedText: "#64748b",   // slate-500  – 4.6:1
 };
 
 function sliceByDays<T>(data: T[], days: number | null) {
@@ -54,179 +65,210 @@ function sliceByDays<T>(data: T[], days: number | null) {
   return data.slice(-days);
 }
 
-// ── Premium Stat Card (dark-accented) ────────────────────────────────────────
-const PremiumStat = ({
-  title, value, subtitle, icon: Icon, trend, color,
+// ── Compact stat row card ────────────────────────────────────────────────────
+const Stat = ({
+  label, value, sub, icon: Icon, trend, color,
 }: {
-  title: string; value: string | number; subtitle?: string;
+  label: string; value: string | number; sub?: string;
   icon: React.ElementType; trend?: number; color: string;
 }) => {
   const isUp = (trend ?? 0) >= 0;
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-5 group hover:border-border/80 transition-all hover:shadow-md">
-      {/* Subtle glow blob */}
-      <div
-        className="absolute -top-6 -right-6 w-24 h-24 rounded-full opacity-[0.07] blur-2xl"
-        style={{ background: color }}
-      />
-      <div className="relative">
-        <div className="flex items-start justify-between mb-4">
-          <div
-            className="p-2.5 rounded-xl"
-            style={{ background: `${color}18` }}
-          >
-            <Icon className="w-4 h-4" style={{ color }} />
-          </div>
-          {trend !== undefined && (
-            <span
-              className={cn(
-                "flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full",
-                isUp ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500"
-              )}
-            >
-              <ArrowUpRight className={cn("w-3 h-3", !isUp && "rotate-90")} />
-              {Math.abs(trend)}%
-            </span>
-          )}
-        </div>
-        <p className="text-2xl font-bold text-foreground tracking-tight">{value}</p>
-        <p className="text-sm font-medium text-foreground mt-0.5">{title}</p>
-        {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+    <div className="relative overflow-hidden rounded-xl bg-card border border-border px-4 py-3.5 flex items-center gap-3 hover:shadow-sm transition-shadow group">
+      <div className="absolute inset-0 opacity-[0.04] rounded-xl" style={{ background: `radial-gradient(circle at 80% 50%, ${color}, transparent 70%)` }} />
+      <div className="p-2 rounded-lg shrink-0" style={{ background: `${color}18` }}>
+        <Icon className="w-3.5 h-3.5" style={{ color }} />
       </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] text-muted-foreground font-medium leading-none mb-1">{label}</p>
+        <p className="text-lg font-bold text-foreground leading-none">{value}</p>
+        {sub && <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{sub}</p>}
+      </div>
+      {trend !== undefined && (
+        <span className={cn("flex items-center gap-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded-full shrink-0", isUp ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500")}>
+          <ArrowUpRight className={cn("w-2.5 h-2.5", !isUp && "rotate-90")} />
+          {Math.abs(trend)}%
+        </span>
+      )}
     </div>
   );
 };
 
-// ── Chart card wrapper ────────────────────────────────────────────────────────
-const ChartCard = ({
-  title, subtitle, children, className,
-}: {
-  title: string; subtitle?: string; children: React.ReactNode; className?: string;
-}) => (
-  <div className={cn("rounded-2xl bg-card border border-border p-5", className)}>
-    <div className="mb-4">
-      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-      {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
-    </div>
-    {children}
+// ── Chart card ───────────────────────────────────────────────────────────────
+const CC = ({ title, sub, children, className }: { title: string; sub?: string; children: React.ReactNode; className?: string }) => (
+  <div className={cn("rounded-xl bg-card border border-border p-4", className)}>
+    <p className="text-[13px] font-semibold text-foreground leading-none">{title}</p>
+    {sub && <p className="text-[11px] text-muted-foreground mt-0.5 mb-3">{sub}</p>}
+    <div className={sub ? "" : "mt-3"}>{children}</div>
   </div>
 );
+
+// ── DS status badge ──────────────────────────────────────────────────────────
+const StatusBadge = ({ s }: { s: DataSource["status"] }) => {
+  const cfg = {
+    active:   { icon: CheckCircle2, cls: "bg-emerald-500/10 text-emerald-600", label: "Active" },
+    syncing:  { icon: RefreshCw,    cls: "bg-blue-500/10 text-blue-600",       label: "Syncing" },
+    error:    { icon: XCircle,      cls: "bg-rose-500/10 text-rose-600",       label: "Error" },
+    inactive: { icon: AlertTriangle,cls: "bg-amber-500/10 text-amber-600",     label: "Inactive" },
+  }[s];
+  const Icon = cfg.icon;
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full", cfg.cls)}>
+      <Icon className={cn("w-3 h-3", s === "syncing" && "animate-spin")} />
+      {cfg.label}
+    </span>
+  );
+};
 
 const Admin = () => {
   const navigate = useNavigate();
   const [section, setSection] = useState<Section>("overview");
   const [collapsed, setCollapsed] = useState(false);
-  const [dateRange, setDateRange] = useState<{
-    preset: number | null;
-    range: DateRange | undefined;
-  }>({ preset: 30, range: undefined });
+  const [dateRange, setDateRange] = useState<{ preset: number | null; range: DateRange | undefined }>({ preset: 30, range: undefined });
 
   const days = dateRange.preset ?? 30;
-  const userData = sliceByDays(userGrowthData, days);
-  const msgData = sliceByDays(messageVolumeData, days);
-  const sysData = sliceByDays(systemMetricsData, days);
+  const userData  = sliceByDays(userGrowthData, days);
+  const msgData   = sliceByDays(messageVolumeData, days);
+  const sysData   = sliceByDays(systemMetricsData, days);
+  const dsQ       = sliceByDays(dataSourceQueryTrend, days);
 
-  // Brand-consistent chart colors
-  const P  = "hsl(230, 80%, 60%)";
-  const G  = "hsl(152, 69%, 47%)";
-  const A  = "hsl(38, 92%, 52%)";
-  const C  = "hsl(188, 80%, 46%)";
-  const R  = "hsl(0, 72%, 56%)";
+  const P = "hsl(230,80%,60%)"; const G = "hsl(152,69%,47%)";
+  const A = "hsl(38,92%,52%)";  const C = "hsl(188,80%,46%)";
+  const R = "hsl(0,72%,56%)";
 
   const activeNav = NAV.find((n) => n.id === section)!;
 
-  // ── Section content ──────────────────────────────────────────────────────
+  // ── Section renderer ───────────────────────────────────────────────────────
   const renderSection = () => {
     switch (section) {
+
+      // ── OVERVIEW ────────────────────────────────────────────────────────
       case "overview":
         return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-              <PremiumStat title="Total Users" value={summaryStats.totalUsers.toLocaleString()} subtitle={`${summaryStats.activeUsersToday} active today`} icon={Users} trend={summaryStats.userGrowthPct} color="#6366f1" />
-              <PremiumStat title="Messages Sent" value={summaryStats.totalMessages.toLocaleString()} subtitle={`${summaryStats.messagesToday.toLocaleString()} today`} icon={MessageSquare} trend={summaryStats.messageGrowthPct} color="#10b981" />
-              <PremiumStat title="Workspaces" value={summaryStats.totalWorkspaces} subtitle={`${summaryStats.totalDocuments.toLocaleString()} documents`} icon={FolderOpen} trend={summaryStats.workspacesGrowthPct} color="#f59e0b" />
-              <PremiumStat title="API Calls" value={summaryStats.totalApiCalls.toLocaleString()} subtitle={`${summaryStats.avgResponseMs} ms avg`} icon={Zap} trend={4.1} color="#06b6d4" />
+          <div className="space-y-5">
+            {/* KPI row – 4 compact cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Stat label="Total Users"    value={summaryStats.totalUsers.toLocaleString()}   sub={`${summaryStats.activeUsersToday} active today`}              icon={Users}         trend={summaryStats.userGrowthPct}    color="#6366f1" />
+              <Stat label="Messages Sent"  value={summaryStats.totalMessages.toLocaleString()} sub={`${summaryStats.messagesToday.toLocaleString()} today`}       icon={MessageSquare} trend={summaryStats.messageGrowthPct} color="#10b981" />
+              <Stat label="Workspaces"     value={summaryStats.totalWorkspaces}                sub={`${summaryStats.totalDocuments.toLocaleString()} documents`}  icon={FolderOpen}    trend={summaryStats.workspacesGrowthPct} color="#f59e0b" />
+              <Stat label="API Calls"      value={summaryStats.totalApiCalls.toLocaleString()} sub={`${summaryStats.avgResponseMs} ms avg`}                      icon={Zap}           trend={4.1}                           color="#06b6d4" />
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-              <ChartCard title="User Growth" subtitle="New vs active users per day">
-                <AdminChart data={userData} type="area" xKey="date" dataKeys={[{ key: "newUsers", label: "New Users", color: P }, { key: "activeUsers", label: "Active Users", color: G }]} />
-              </ChartCard>
-              <ChartCard title="Message Volume" subtitle="Daily messages and AI responses">
+
+            {/* Second KPI row */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Stat label="Data Sources"    value={`${dataSourceStats.active} / ${dataSourceStats.total}`} sub="active connectors" icon={Layers}  color="#8b5cf6" />
+              <Stat label="Storage Used"    value={summaryStats.storageUsed}                               sub="across all sources" icon={HardDrive} color="#f59e0b" />
+              <Stat label="Uptime"          value={`${summaryStats.uptime}%`}                              sub="30-day SLA"        icon={ShieldCheck} color="#10b981" />
+              <Stat label="Avg AI Response" value={`${summaryStats.avgResponseMs} ms`}                    sub="last 30 days"      icon={Clock}       color="#06b6d4" />
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <CC title="User Growth" sub="New vs active users per day">
+                <AdminChart data={userData} type="area" xKey="date" dataKeys={[{ key: "newUsers", label: "New Users", color: P }, { key: "activeUsers", label: "Active", color: G }]} />
+              </CC>
+              <CC title="Message Volume" sub="Daily messages and AI responses">
                 <AdminChart data={msgData} type="area" xKey="date" dataKeys={[{ key: "messages", label: "Messages", color: P }, { key: "aiResponses", label: "AI Responses", color: C }]} />
-              </ChartCard>
+              </CC>
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-              <ChartCard title="Workspace Types" subtitle="Messages by category">
-                <AdminChart data={workspaceUsageData} type="bar" xKey="name" height={180} dataKeys={[{ key: "messages", label: "Messages", color: P }, { key: "documents", label: "Docs", color: A }]} />
-              </ChartCard>
-              <div className="xl:col-span-2 rounded-2xl bg-card border border-border p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground">Recent Activity</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">Latest actions across the platform</p>
-                  </div>
-                  <button className="text-xs text-primary font-medium flex items-center gap-1 hover:underline">
-                    View all <ArrowUpRight className="w-3 h-3" />
-                  </button>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <CC title="Workspace Types" sub="Messages by category">
+                <AdminChart data={workspaceUsageData} type="bar" xKey="name" height={160} dataKeys={[{ key: "messages", label: "Messages", color: P }, { key: "documents", label: "Docs", color: A }]} />
+              </CC>
+
+              {/* Top queries */}
+              <CC title="Top Search Queries" sub="Most searched this period">
+                <div className="space-y-2">
+                  {topSearchQueries.slice(0, 5).map((q, i) => (
+                    <div key={q.query} className="flex items-center gap-2">
+                      <span className="w-4 text-[10px] font-bold text-muted-foreground shrink-0">{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] text-foreground font-medium truncate">{q.query}</p>
+                        <div className="h-1.5 bg-muted rounded-full mt-1">
+                          <div className="h-1.5 rounded-full" style={{ width: `${(q.count / 500) * 100}%`, background: P }} />
+                        </div>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground shrink-0">{q.count}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="space-y-1">
-                  {recentActivity.slice(0, 6).map((item) => {
-                    const Icon = activityTypeIcon[item.type] ?? Activity;
-                    const c = activityColors[item.type] ?? "#6366f1";
+              </CC>
+
+              {/* Recent activity */}
+              <CC title="Recent Activity" sub="Latest platform actions">
+                <div className="space-y-1.5">
+                  {recentActivity.slice(0, 5).map((item) => {
+                    const Icon = { workspace: FolderOpen, document: FileText, chat: MessageSquare, user: Users, api: Zap }[item.type] ?? Activity;
+                    const c = { workspace: "#6366f1", document: "#f59e0b", chat: "#10b981", user: "#8b5cf6", api: "#06b6d4" }[item.type] ?? "#6366f1";
                     return (
-                      <div key={item.id} className="flex items-center gap-3 py-2 border-b border-border/60 last:border-0">
-                        <span className="p-1.5 rounded-lg shrink-0" style={{ background: `${c}18` }}>
-                          <Icon className="w-3.5 h-3.5" style={{ color: c }} />
+                      <div key={item.id} className="flex items-start gap-2 py-1 border-b border-border/50 last:border-0">
+                        <span className="p-1 rounded-md mt-0.5 shrink-0" style={{ background: `${c}18` }}>
+                          <Icon className="w-3 h-3" style={{ color: c }} />
                         </span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] text-foreground truncate">
-                            <span className="font-semibold">{item.user}</span>
-                            <span className="text-muted-foreground"> {item.action} </span>
-                            <span className="font-medium">{item.target}</span>
+                          <p className="text-[12px] text-foreground leading-snug truncate">
+                            <span className="font-semibold">{item.user.split("@")[0]}</span>
+                            <span className="text-muted-foreground"> {item.action}</span>
                           </p>
+                          <p className="text-[10px] text-muted-foreground">{item.time}</p>
                         </div>
-                        <span className="text-[11px] text-muted-foreground shrink-0">{item.time}</span>
                       </div>
                     );
                   })}
                 </div>
-              </div>
+              </CC>
+            </div>
+
+            {/* Content quality */}
+            <div className="grid grid-cols-3 gap-3">
+              {contentQualityData.map((cq) => (
+                <div key={cq.name} className="rounded-xl bg-card border border-border px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">{cq.name} Queries</p>
+                    <p className="text-xl font-bold text-foreground">{cq.value}%</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: cq.name === "Answered" ? "#10b98118" : cq.name === "Partial" ? "#f59e0b18" : "#ef444418" }}>
+                    <Star className="w-4 h-4" style={{ color: cq.name === "Answered" ? "#10b981" : cq.name === "Partial" ? "#f59e0b" : "#ef4444" }} />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         );
 
+      // ── USERS ───────────────────────────────────────────────────────────
       case "users":
         return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-              <PremiumStat title="Total Users" value={summaryStats.totalUsers} icon={Users} trend={summaryStats.userGrowthPct} color="#6366f1" />
-              <PremiumStat title="Active Today" value={summaryStats.activeUsersToday} subtitle="of total users" icon={Activity} color="#10b981" />
-              <PremiumStat title="Avg Session" value="18 min" subtitle="per user per day" icon={Clock} color="#f59e0b" />
-              <PremiumStat title="Retention" value="74%" subtitle="30-day retention" icon={ShieldCheck} color="#8b5cf6" />
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Stat label="Total Users"  value={summaryStats.totalUsers}          icon={Users}       trend={summaryStats.userGrowthPct} color="#6366f1" />
+              <Stat label="Active Today" value={summaryStats.activeUsersToday}    sub="of total"     icon={Activity}    color="#10b981" />
+              <Stat label="Avg Session"  value="18 min"                           sub="per day"      icon={Clock}       color="#f59e0b" />
+              <Stat label="Retention"    value="74%"                              sub="30-day"       icon={ShieldCheck} color="#8b5cf6" />
             </div>
-            <ChartCard title="User Growth Over Time" subtitle="New signups and daily active users">
-              <AdminChart data={userData} type="area" height={260} xKey="date" dataKeys={[{ key: "total", label: "Cumulative", color: P }, { key: "newUsers", label: "New Signups", color: G }, { key: "activeUsers", label: "Daily Active", color: A }]} />
-            </ChartCard>
-            <div className="rounded-2xl bg-card border border-border overflow-hidden">
-              <div className="px-5 py-4 border-b border-border">
-                <h3 className="text-sm font-semibold text-foreground">All Recent Activity</h3>
+            <CC title="User Growth Over Time" sub="Signups and daily active users">
+              <AdminChart data={userData} type="area" height={220} xKey="date" dataKeys={[{ key: "total", label: "Cumulative", color: P }, { key: "newUsers", label: "New", color: G }, { key: "activeUsers", label: "Active", color: A }]} />
+            </CC>
+            <div className="rounded-xl bg-card border border-border overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-muted/20 flex items-center justify-between">
+                <p className="text-[13px] font-semibold text-foreground">All Recent Activity</p>
               </div>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/30">
-                    <th className="px-5 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">User</th>
-                    <th className="px-5 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Action</th>
-                    <th className="px-5 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Target</th>
-                    <th className="px-5 py-2.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Time</th>
+                  <tr className="border-b border-border">
+                    {["User","Action","Target","Time"].map((h, i) => (
+                      <th key={h} className={cn("px-4 py-2 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide", i === 3 && "text-right")}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {recentActivity.map((item, i) => (
                     <tr key={item.id} className={cn("border-b border-border/60 last:border-0 hover:bg-muted/20 transition-colors", i % 2 === 0 && "bg-muted/10")}>
-                      <td className="px-5 py-3 font-semibold text-foreground">{item.user}</td>
-                      <td className="px-5 py-3 text-muted-foreground">{item.action}</td>
-                      <td className="px-5 py-3 text-foreground">{item.target}</td>
-                      <td className="px-5 py-3 text-muted-foreground text-right">{item.time}</td>
+                      <td className="px-4 py-2.5 font-semibold text-foreground text-[13px]">{item.user}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground text-[13px]">{item.action}</td>
+                      <td className="px-4 py-2.5 text-foreground text-[13px]">{item.target}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground text-[13px] text-right">{item.time}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -235,64 +277,128 @@ const Admin = () => {
           </div>
         );
 
+      // ── CHAT ────────────────────────────────────────────────────────────
       case "chat":
         return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-              <PremiumStat title="Total Messages" value={summaryStats.totalMessages.toLocaleString()} subtitle={`+${summaryStats.messagesToday} today`} icon={MessageSquare} trend={summaryStats.messageGrowthPct} color="#6366f1" />
-              <PremiumStat title="AI Responses" value={(Math.round(summaryStats.totalMessages * 0.94)).toLocaleString()} subtitle="94% answer rate" icon={Zap} color="#10b981" />
-              <PremiumStat title="Avg Msg/Session" value="12.4" subtitle="messages per session" icon={Activity} color="#f59e0b" />
-              <PremiumStat title="Avg Response" value={`${summaryStats.avgResponseMs} ms`} subtitle="AI response time" icon={Clock} color="#06b6d4" />
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Stat label="Total Messages"   value={summaryStats.totalMessages.toLocaleString()} sub={`+${summaryStats.messagesToday} today`} icon={MessageSquare} trend={summaryStats.messageGrowthPct} color="#6366f1" />
+              <Stat label="AI Responses"     value={(Math.round(summaryStats.totalMessages * 0.94)).toLocaleString()} sub="94% answer rate" icon={Zap}     color="#10b981" />
+              <Stat label="Avg Msg/Session"  value="12.4"  sub="messages"      icon={Activity}  color="#f59e0b" />
+              <Stat label="Avg Response"     value={`${summaryStats.avgResponseMs} ms`} sub="AI latency" icon={Clock} color="#06b6d4" />
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-              <ChartCard title="Daily Message Volume" subtitle="Messages vs AI responses">
-                <AdminChart data={msgData} type="area" height={240} xKey="date" dataKeys={[{ key: "messages", label: "Messages", color: P }, { key: "aiResponses", label: "AI Responses", color: C }]} />
-              </ChartCard>
-              <ChartCard title="Messages by Workspace" subtitle="Volume breakdown per type">
-                <AdminChart data={workspaceUsageData} type="bar" height={240} xKey="name" dataKeys={[{ key: "messages", label: "Messages", color: P }]} />
-              </ChartCard>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <CC title="Daily Message Volume" sub="Messages vs AI responses">
+                <AdminChart data={msgData} type="area" height={200} xKey="date" dataKeys={[{ key: "messages", label: "Messages", color: P }, { key: "aiResponses", label: "AI", color: C }]} />
+              </CC>
+              <CC title="Messages by Workspace Type" sub="Volume breakdown">
+                <AdminChart data={workspaceUsageData} type="bar" height={200} xKey="name" dataKeys={[{ key: "messages", label: "Messages", color: P }]} />
+              </CC>
             </div>
+            {/* Search analytics */}
+            <CC title="Top Search Queries" sub="Most common queries and result quality">
+              <table className="w-full text-sm mt-1">
+                <thead>
+                  <tr className="border-b border-border">
+                    {["#","Query","Searches","Avg Results","Bar"].map((h, i) => (
+                      <th key={h} className={cn("pb-2 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide", i >= 2 && "text-right")}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {topSearchQueries.map((q, i) => (
+                    <tr key={q.query} className="border-b border-border/60 last:border-0 hover:bg-muted/20 transition-colors">
+                      <td className="py-2 pr-2 text-[11px] font-bold text-muted-foreground w-6">{i + 1}</td>
+                      <td className="py-2 text-[13px] text-foreground font-medium">{q.query}</td>
+                      <td className="py-2 text-right text-[13px] text-muted-foreground">{q.count}</td>
+                      <td className="py-2 text-right text-[13px] text-muted-foreground">{q.avgResults}</td>
+                      <td className="py-2 pl-4 w-24">
+                        <div className="h-1.5 bg-muted rounded-full"><div className="h-1.5 rounded-full" style={{ width: `${(q.count / 500) * 100}%`, background: P }} /></div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CC>
           </div>
         );
 
-      case "workspaces":
+      // ── DATA SOURCES ────────────────────────────────────────────────────
+      case "datasources":
         return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-              <PremiumStat title="Total Workspaces" value={summaryStats.totalWorkspaces} trend={summaryStats.workspacesGrowthPct} icon={FolderOpen} color="#6366f1" />
-              <PremiumStat title="Documents" value={summaryStats.totalDocuments.toLocaleString()} subtitle="across all workspaces" icon={FileText} color="#f59e0b" />
-              <PremiumStat title="Storage Used" value={summaryStats.storageUsed} subtitle="total storage" icon={Database} color="#10b981" />
-              <PremiumStat title="Shared Spaces" value="42" subtitle="team workspaces" icon={Users} color="#8b5cf6" />
+          <div className="space-y-5">
+            {/* KPI strip */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Stat label="Total Sources"     value={dataSourceStats.total}                               sub={`${dataSourceStats.active} active`}      icon={Layers}     color="#6366f1" />
+              <Stat label="Documents Indexed" value={dataSourceStats.totalDocuments.toLocaleString()}    sub="across all sources"                       icon={FileText}   color="#10b981" />
+              <Stat label="Storage Consumed"  value={dataSourceStats.totalStorage}                       sub="raw ingested"                            icon={HardDrive}  color="#f59e0b" />
+              <Stat label="Queries / Month"   value={dataSourceStats.totalQueriesMonth.toLocaleString()} sub="retrieval requests"                      icon={Search}     color="#06b6d4" />
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-              <ChartCard title="Workspace Distribution" subtitle="Workspaces and documents by type">
-                <AdminChart data={workspaceUsageData} type="bar" height={240} xKey="name" dataKeys={[{ key: "workspaces", label: "Workspaces", color: P }, { key: "documents", label: "Documents", color: A }]} />
-              </ChartCard>
-              <div className="rounded-2xl bg-card border border-border overflow-hidden">
-                <div className="px-5 py-4 border-b border-border">
-                  <h3 className="text-sm font-semibold text-foreground">Top Workspaces by Usage</h3>
-                </div>
+
+            {/* Status overview chips */}
+            <div className="flex flex-wrap gap-2">
+              {(["active","syncing","error","inactive"] as DataSource["status"][]).map(s => {
+                const cnt = dataSources.filter(d => d.status === s).length;
+                const cfg = { active: { label: "Active", color: "#10b981" }, syncing: { label: "Syncing", color: "#3b82f6" }, error: { label: "Error", color: "#ef4444" }, inactive: { label: "Inactive", color: "#94a3b8" } }[s];
+                return (
+                  <div key={s} className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-[12px]">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
+                    <span className="font-semibold text-foreground">{cnt}</span>
+                    <span className="text-muted-foreground">{cfg.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Query trend */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <CC title="Query Volume Over Time" sub="Daily retrieval requests across all data sources">
+                <AdminChart data={dsQ} type="area" height={180} xKey="date" dataKeys={[{ key: "queries", label: "Queries", color: P }, { key: "errors", label: "Errors", color: R }]} />
+              </CC>
+              <CC title="Documents by Source Type" sub="Indexed document count">
+                <AdminChart data={dataSources.filter(d => d.documents > 0).map(d => ({ name: d.type, docs: d.documents }))} type="bar" height={180} xKey="name" dataKeys={[{ key: "docs", label: "Documents", color: A }]} />
+              </CC>
+            </div>
+
+            {/* Data sources table */}
+            <div className="rounded-xl bg-card border border-border overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-muted/20">
+                <p className="text-[13px] font-semibold text-foreground">All Data Sources</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Connection status, sync health, and usage metrics</p>
+              </div>
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-border bg-muted/30">
-                      <th className="px-5 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">Workspace</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Users</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Msgs</th>
-                      <th className="px-5 py-2.5 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Docs</th>
+                    <tr className="border-b border-border">
+                      {["Source","Type","Status","Documents","Last Sync","Queries/mo","Errors","Workspace"].map((h, i) => (
+                        <th key={h} className={cn("px-4 py-2.5 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap", i >= 3 && i <= 6 && "text-right")}>{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {topWorkspaces.map((ws, i) => (
-                      <tr key={ws.name} className={cn("border-b border-border/60 last:border-0 hover:bg-muted/20 transition-colors", i % 2 === 0 && "bg-muted/10")}>
-                        <td className="px-5 py-3">
+                    {dataSources.map((ds, i) => (
+                      <tr key={ds.id} className={cn("border-b border-border/60 last:border-0 hover:bg-muted/20 transition-colors", i % 2 === 0 && "bg-muted/10")}>
+                        <td className="px-4 py-3 min-w-[160px]">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold text-foreground truncate max-w-[120px]">{ws.name}</span>
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 capitalize">{ws.type}</Badge>
+                            <img src={LOGO_MAP[ds.logo]} alt={ds.type} className="w-5 h-5 shrink-0 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                            <span className="font-semibold text-foreground text-[13px] truncate">{ds.name}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">{ws.users}</td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">{ws.messages.toLocaleString()}</td>
-                        <td className="px-5 py-3 text-right text-muted-foreground">{ws.documents}</td>
+                        <td className="px-4 py-3">
+                          <span className="text-[12px] text-muted-foreground">{ds.type}</span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap"><StatusBadge s={ds.status} /></td>
+                        <td className="px-4 py-3 text-right text-[13px] text-muted-foreground">{ds.documents.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right text-[12px] text-muted-foreground whitespace-nowrap">{ds.lastSync}</td>
+                        <td className="px-4 py-3 text-right text-[13px] text-muted-foreground">{ds.queriesThisMonth.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right">
+                          {ds.errorCount > 0 ? (
+                            <span className="text-[12px] font-bold text-rose-500">{ds.errorCount}</span>
+                          ) : (
+                            <span className="text-[12px] text-emerald-500 font-bold">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-[12px] text-muted-foreground">{ds.workspace}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -302,41 +408,88 @@ const Admin = () => {
           </div>
         );
 
+      // ── WORKSPACES ──────────────────────────────────────────────────────
+      case "workspaces":
+        return (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Stat label="Total Workspaces" value={summaryStats.totalWorkspaces} trend={summaryStats.workspacesGrowthPct} icon={FolderOpen} color="#6366f1" />
+              <Stat label="Documents"        value={summaryStats.totalDocuments.toLocaleString()} sub="all workspaces" icon={FileText}  color="#f59e0b" />
+              <Stat label="Storage Used"     value={summaryStats.storageUsed}                     sub="total"         icon={Database}   color="#10b981" />
+              <Stat label="Shared Spaces"    value="42"                                            sub="team workspaces" icon={Users}    color="#8b5cf6" />
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <CC title="Workspace Distribution" sub="Workspaces and documents by type">
+                <AdminChart data={workspaceUsageData} type="bar" height={200} xKey="name" dataKeys={[{ key: "workspaces", label: "Workspaces", color: P }, { key: "documents", label: "Documents", color: A }]} />
+              </CC>
+              <div className="rounded-xl bg-card border border-border overflow-hidden">
+                <div className="px-4 py-3 border-b border-border bg-muted/20">
+                  <p className="text-[13px] font-semibold text-foreground">Top Workspaces by Usage</p>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {["Workspace","Users","Msgs","Docs","Storage"].map((h, i) => (
+                        <th key={h} className={cn("px-4 py-2.5 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide", i >= 1 && "text-right")}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topWorkspaces.map((ws, i) => (
+                      <tr key={ws.name} className={cn("border-b border-border/60 last:border-0 hover:bg-muted/20 transition-colors", i % 2 === 0 && "bg-muted/10")}>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-foreground text-[13px] truncate max-w-[110px]">{ws.name}</span>
+                            <Badge variant="secondary" className="text-[10px] px-1 py-0 capitalize">{ws.type}</Badge>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-[13px] text-muted-foreground">{ws.users}</td>
+                        <td className="px-4 py-2.5 text-right text-[13px] text-muted-foreground">{ws.messages.toLocaleString()}</td>
+                        <td className="px-4 py-2.5 text-right text-[13px] text-muted-foreground">{ws.documents}</td>
+                        <td className="px-4 py-2.5 text-right text-[13px] text-muted-foreground">{ws.storage}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+
+      // ── SYSTEM ──────────────────────────────────────────────────────────
       case "system":
         return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-              <PremiumStat title="Total API Calls" value={summaryStats.totalApiCalls.toLocaleString()} trend={4.1} icon={Zap} color="#6366f1" />
-              <PremiumStat title="Avg Response" value={`${summaryStats.avgResponseMs} ms`} subtitle="last 30 days" icon={Clock} color="#10b981" />
-              <PremiumStat title="Error Rate" value={`${summaryStats.errorRate}%`} subtitle="below threshold" icon={Activity} color="#f59e0b" />
-              <PremiumStat title="Uptime" value={`${summaryStats.uptime}%`} subtitle="last 30 days" icon={ShieldCheck} color="#10b981" />
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Stat label="Total API Calls" value={summaryStats.totalApiCalls.toLocaleString()} trend={4.1}     icon={Zap}        color="#6366f1" />
+              <Stat label="Avg Response"    value={`${summaryStats.avgResponseMs} ms`}           sub="30-day avg" icon={Clock}      color="#10b981" />
+              <Stat label="Error Rate"      value={`${summaryStats.errorRate}%`}                 sub="below threshold" icon={Activity} color="#f59e0b" />
+              <Stat label="Uptime"          value={`${summaryStats.uptime}%`}                    sub="30-day SLA" icon={ShieldCheck} color="#10b981" />
             </div>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-              <ChartCard title="API Call Volume" subtitle="Daily API calls over time">
-                <AdminChart data={sysData} type="area" height={240} xKey="date" dataKeys={[{ key: "apiCalls", label: "API Calls", color: P }]} />
-              </ChartCard>
-              <ChartCard title="Response Time & Error Rate" subtitle="Latency (ms) and error rate (%)">
-                <AdminChart data={sysData} type="area" height={240} xKey="date" dataKeys={[{ key: "avgResponseMs", label: "Response (ms)", color: A }, { key: "errorRate", label: "Error Rate (%)", color: R }]} />
-              </ChartCard>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <CC title="API Call Volume" sub="Daily API calls">
+                <AdminChart data={sysData} type="area" height={200} xKey="date" dataKeys={[{ key: "apiCalls", label: "API Calls", color: P }]} />
+              </CC>
+              <CC title="Response Time & Error Rate" sub="Latency (ms) and error rate (%)">
+                <AdminChart data={sysData} type="area" height={200} xKey="date" dataKeys={[{ key: "avgResponseMs", label: "Response (ms)", color: A }, { key: "errorRate", label: "Error Rate (%)", color: R }]} />
+              </CC>
             </div>
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {[
-                { label: "Database", latency: "12 ms", uptime: "99.99%" },
-                { label: "AI Engine", latency: `${summaryStats.avgResponseMs} ms`, uptime: "99.97%" },
-                { label: "File Storage", latency: "28 ms", uptime: "99.98%" },
-                { label: "Auth Service", latency: "8 ms", uptime: "100%" },
+                { label: "Database",     latency: "12 ms",   uptime: "99.99%" },
+                { label: "AI Engine",    latency: `${summaryStats.avgResponseMs} ms`, uptime: "99.97%" },
+                { label: "File Storage", latency: "28 ms",   uptime: "99.98%" },
+                { label: "Auth Service", latency: "8 ms",    uptime: "100%" },
               ].map((s) => (
-                <div key={s.label} className="rounded-2xl bg-card border border-border p-5 relative overflow-hidden">
-                  <div className="absolute top-3 right-3 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[11px] font-semibold text-emerald-500">Live</span>
+                <div key={s.label} className="rounded-xl bg-card border border-border p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[13px] font-semibold text-foreground">{s.label}</p>
+                    <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-500">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />Live
+                    </span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-primary/10 w-fit mb-3">
-                    <Server className="w-4 h-4 text-primary" />
-                  </div>
-                  <p className="text-sm font-bold text-foreground">{s.label}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Latency: <span className="text-foreground font-medium">{s.latency}</span></p>
-                  <p className="text-xs text-muted-foreground">Uptime: <span className="text-foreground font-medium">{s.uptime}</span></p>
+                  <p className="text-[11px] text-muted-foreground">Latency: <span className="text-foreground font-medium">{s.latency}</span></p>
+                  <p className="text-[11px] text-muted-foreground">Uptime: <span className="text-foreground font-medium">{s.uptime}</span></p>
                 </div>
               ))}
             </div>
@@ -349,36 +502,29 @@ const Admin = () => {
 
   return (
     <div className="min-h-screen flex" style={{ background: "hsl(var(--background))" }}>
-      {/* ── Dark Sidebar ───────────────────────────────────────────────────── */}
+
+      {/* ── Dark sidebar – WCAG AA compliant colours ───────────────────────── */}
       <aside
-        className={cn(
-          "h-screen sticky top-0 flex flex-col shrink-0 transition-all duration-300",
-          collapsed ? "w-[68px]" : "w-[220px]"
-        )}
-        style={{ background: "hsl(224, 30%, 8%)", borderRight: "1px solid hsl(224, 20%, 14%)" }}
+        className={cn("h-screen sticky top-0 flex flex-col shrink-0 transition-all duration-300", collapsed ? "w-[60px]" : "w-[210px]")}
+        style={{ background: SB.bg, borderRight: `1px solid ${SB.border}` }}
       >
-        {/* Logo */}
-        <div
-          className="flex items-center h-16 shrink-0 px-4 gap-3"
-          style={{ borderBottom: "1px solid hsl(224, 20%, 14%)" }}
-        >
-          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shrink-0">
-            <TrendingUp className="w-4 h-4 text-primary-foreground" />
+        {/* Logo row */}
+        <div className="flex items-center h-14 shrink-0 px-3 gap-2.5" style={{ borderBottom: `1px solid ${SB.border}` }}>
+          <div className="w-7 h-7 rounded-lg bg-indigo-500 flex items-center justify-center shrink-0">
+            <BarChart3 className="w-3.5 h-3.5 text-white" />
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-[13px] font-bold text-white truncate leading-tight">Admin Panel</p>
-              <p className="text-[10px] text-white/40 truncate">Enplify.ai</p>
+              <p className="text-[13px] font-bold leading-tight truncate" style={{ color: SB.navActive }}>Admin Panel</p>
+              <p className="text-[10px] truncate" style={{ color: SB.mutedText }}>Enplify.ai</p>
             </div>
           )}
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
           {!collapsed && (
-            <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "hsl(224, 15%, 40%)" }}>
-              Analytics
-            </p>
+            <p className="px-2.5 mb-1.5 text-[9px] font-bold uppercase tracking-[0.12em]" style={{ color: SB.mutedText }}>Analytics</p>
           )}
           {NAV.map((nav) => {
             const isActive = section === nav.id;
@@ -387,62 +533,34 @@ const Admin = () => {
                 key={nav.id}
                 onClick={() => setSection(nav.id)}
                 title={collapsed ? nav.label : undefined}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 relative group",
-                  collapsed && "justify-center"
-                )}
+                className={cn("w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors duration-100 relative focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400", collapsed && "justify-center")}
                 style={{
-                  background: isActive ? "hsl(230, 60%, 55%, 0.2)" : "transparent",
-                  color: isActive ? "hsl(230, 85%, 70%)" : "hsl(224, 15%, 55%)",
+                  background: isActive ? SB.activeBg : "transparent",
+                  color: isActive ? SB.navActive : SB.nav,
                 }}
-                onMouseEnter={e => {
-                  if (!isActive) (e.currentTarget as HTMLElement).style.background = "hsl(224, 20%, 14%)";
-                  if (!isActive) (e.currentTarget as HTMLElement).style.color = "hsl(210, 20%, 85%)";
-                }}
-                onMouseLeave={e => {
-                  if (!isActive) (e.currentTarget as HTMLElement).style.background = "transparent";
-                  if (!isActive) (e.currentTarget as HTMLElement).style.color = "hsl(224, 15%, 55%)";
-                }}
+                onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = SB.border; (e.currentTarget as HTMLElement).style.color = SB.navHover; } }}
+                onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = SB.nav; } }}
               >
-                {isActive && (
-                  <span
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full"
-                    style={{ background: "hsl(230, 85%, 65%)" }}
-                  />
-                )}
+                {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full" style={{ background: SB.activeBar }} />}
                 <nav.icon className="w-4 h-4 shrink-0" />
-                {!collapsed && (
-                  <span className="text-[13px] font-medium flex-1 text-left truncate">{nav.label}</span>
-                )}
+                {!collapsed && <span className="text-[13px] font-medium flex-1 text-left truncate">{nav.label}</span>}
                 {!collapsed && nav.badge && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/20 text-primary min-w-[18px] text-center">
-                    {nav.badge}
-                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center" style={{ background: "rgba(239,68,68,0.2)", color: "#fca5a5" }}>{nav.badge}</span>
                 )}
-                {collapsed && nav.badge && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />
-                )}
+                {collapsed && nav.badge && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-400" />}
               </button>
             );
           })}
 
-          {/* Divider */}
-          <div className="my-3 mx-2" style={{ height: 1, background: "hsl(224, 20%, 14%)" }} />
+          <div className="my-2 mx-1" style={{ height: 1, background: SB.border }} />
 
-          {/* Back to app */}
           <button
             onClick={() => navigate("/")}
             title={collapsed ? "Back to App" : undefined}
-            className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150", collapsed && "justify-center")}
-            style={{ color: "hsl(224, 15%, 45%)" }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.background = "hsl(224, 20%, 14%)";
-              (e.currentTarget as HTMLElement).style.color = "hsl(210, 20%, 75%)";
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.background = "transparent";
-              (e.currentTarget as HTMLElement).style.color = "hsl(224, 15%, 45%)";
-            }}
+            className={cn("w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors duration-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400", collapsed && "justify-center")}
+            style={{ color: SB.label }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = SB.border; (e.currentTarget as HTMLElement).style.color = SB.navHover; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = SB.label; }}
           >
             <LogOut className="w-4 h-4 shrink-0" />
             {!collapsed && <span className="text-[13px] font-medium">Back to App</span>}
@@ -450,54 +568,48 @@ const Admin = () => {
         </nav>
 
         {/* Collapse toggle */}
-        <div className="p-3 shrink-0" style={{ borderTop: "1px solid hsl(224, 20%, 14%)" }}>
+        <div className="p-2 shrink-0" style={{ borderTop: `1px solid ${SB.border}` }}>
           <button
             onClick={() => setCollapsed(v => !v)}
-            className={cn("w-full flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-150", collapsed && "justify-center")}
-            style={{ color: "hsl(224, 15%, 45%)" }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.background = "hsl(224, 20%, 14%)";
-              (e.currentTarget as HTMLElement).style.color = "hsl(210, 20%, 75%)";
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.background = "transparent";
-              (e.currentTarget as HTMLElement).style.color = "hsl(224, 15%, 45%)";
-            }}
+            className={cn("w-full flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors duration-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400", collapsed && "justify-center")}
+            style={{ color: SB.label }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = SB.border; (e.currentTarget as HTMLElement).style.color = SB.navHover; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = SB.label; }}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-            {!collapsed && <span className="text-[12px]">Collapse menu</span>}
+            {!collapsed && <span className="text-[12px]">Collapse</span>}
           </button>
         </div>
       </aside>
 
-      {/* ── Main content ──────────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col min-w-0" style={{ background: "hsl(var(--background))" }}>
+      {/* ── Main content ────────────────────────────────────────────────────── */}
+      <main className="flex-1 flex flex-col min-w-0">
         {/* Topbar */}
-        <header className="h-16 shrink-0 flex items-center justify-between px-7 border-b border-border bg-card/60 backdrop-blur-sm sticky top-0 z-10">
+        <header className="h-14 shrink-0 flex items-center justify-between px-6 border-b border-border bg-card/70 backdrop-blur-sm sticky top-0 z-10">
           <div>
-            <h1 className="text-base font-bold text-foreground">{activeNav.label}</h1>
-            <p className="text-xs text-muted-foreground">
-              {section === "overview" && "Platform-wide analytics snapshot"}
-              {section === "users" && "User acquisition and engagement metrics"}
-              {section === "chat" && "Message volume and AI performance"}
-              {section === "workspaces" && "Workspace and document statistics"}
-              {section === "system" && "API health and infrastructure metrics"}
+            <h1 className="text-[15px] font-bold text-foreground leading-none">{activeNav.label}</h1>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {section === "overview"    && "Platform-wide analytics snapshot"}
+              {section === "users"       && "User acquisition and engagement"}
+              {section === "chat"        && "Message volume and AI performance"}
+              {section === "datasources" && "Connector health, sync status, and query metrics"}
+              {section === "workspaces"  && "Workspace and document statistics"}
+              {section === "system"      && "API health and infrastructure metrics"}
             </p>
           </div>
           <div className="flex items-center gap-3">
             <DateRangePicker value={dateRange} onChange={setDateRange} />
             <div className="flex items-center gap-2 pl-3 border-l border-border">
-              <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center">
-                <span className="text-xs font-bold text-primary">A</span>
+              <div className="w-7 h-7 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                <span className="text-xs font-bold text-indigo-500">A</span>
               </div>
-              {!collapsed && <span className="text-sm font-medium text-foreground hidden lg:block">Admin</span>}
             </div>
           </div>
         </header>
 
-        {/* Page body */}
         <div className="flex-1 overflow-auto">
-          <div className="max-w-[1280px] mx-auto px-7 py-7">
+          <div className="max-w-[1400px] mx-auto px-6 py-6">
             {renderSection()}
           </div>
         </div>
