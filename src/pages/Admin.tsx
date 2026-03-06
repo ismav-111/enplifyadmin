@@ -24,8 +24,8 @@ import {
   workspaceUsageData, systemMetricsData, topWorkspaces,
   recentActivity, dataSources, dataSourceQueryTrend,
   dataSourceStats, topSearchQueries, contentQualityData,
-  workspaceDetails,
-  type DataSource,
+  workspaceDetails, tenants,
+  type DataSource, type Tenant,
 } from "@/data/mockAdminData";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
