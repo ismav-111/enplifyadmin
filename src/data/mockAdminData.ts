@@ -1,0 +1,76 @@
+import { subDays, format } from "date-fns";
+
+// Generate daily data points for the past N days
+function generateDailyData(days: number, base: number, variance: number) {
+  return Array.from({ length: days }, (_, i) => {
+    const date = subDays(new Date(), days - 1 - i);
+    return {
+      date: format(date, "MMM dd"),
+      value: Math.max(0, Math.round(base + (Math.random() - 0.4) * variance)),
+    };
+  });
+}
+
+export const userGrowthData = generateDailyData(30, 12, 8).map((d, i, arr) => ({
+  ...d,
+  total: 240 + arr.slice(0, i + 1).reduce((sum, x) => sum + x.value, 0),
+  newUsers: d.value,
+  activeUsers: Math.round(d.value * 0.7 + Math.random() * 5),
+}));
+
+export const messageVolumeData = generateDailyData(30, 420, 200).map((d) => ({
+  ...d,
+  messages: d.value,
+  aiResponses: Math.round(d.value * 0.95),
+}));
+
+export const workspaceUsageData = [
+  { name: "Personal", workspaces: 84, documents: 312, messages: 4210 },
+  { name: "Shared", workspaces: 42, documents: 891, messages: 9870 },
+  { name: "Organization", workspaces: 18, documents: 2140, messages: 21400 },
+];
+
+export const systemMetricsData = generateDailyData(30, 240, 80).map((d) => ({
+  ...d,
+  apiCalls: d.value * 3,
+  avgResponseMs: Math.round(820 + (Math.random() - 0.5) * 300),
+  errorRate: parseFloat((Math.random() * 0.8).toFixed(2)),
+}));
+
+export const topWorkspaces = [
+  { name: "Marketing Team", type: "shared", users: 14, messages: 5230, documents: 312, storage: "2.4 GB" },
+  { name: "Engineering Hub", type: "organization", users: 28, messages: 4810, documents: 891, storage: "8.1 GB" },
+  { name: "Sales Operations", type: "shared", users: 9, messages: 3920, documents: 214, storage: "1.2 GB" },
+  { name: "Product Research", type: "shared", users: 6, messages: 2740, documents: 178, storage: "0.9 GB" },
+  { name: "Executive Suite", type: "organization", users: 5, messages: 1980, documents: 56, storage: "0.4 GB" },
+  { name: "My Workspace", type: "personal", users: 1, messages: 1240, documents: 43, storage: "0.3 GB" },
+  { name: "Dev Sandbox", type: "personal", users: 1, messages: 980, documents: 28, storage: "0.2 GB" },
+];
+
+export const recentActivity = [
+  { id: "1", user: "alice@company.com", action: "Created workspace", target: "Q1 Planning", time: "2 min ago", type: "workspace" },
+  { id: "2", user: "bob@company.com", action: "Uploaded document", target: "annual-report.pdf", time: "8 min ago", type: "document" },
+  { id: "3", user: "carol@company.com", action: "Sent 24 messages", target: "Marketing Team", time: "15 min ago", type: "chat" },
+  { id: "4", user: "dave@company.com", action: "Invited user", target: "Engineering Hub", time: "32 min ago", type: "user" },
+  { id: "5", user: "eve@company.com", action: "API key generated", target: "Production", time: "1 hr ago", type: "api" },
+  { id: "6", user: "frank@company.com", action: "Deleted document", target: "draft-v1.docx", time: "2 hr ago", type: "document" },
+  { id: "7", user: "grace@company.com", action: "Created workspace", target: "Legal Review", time: "3 hr ago", type: "workspace" },
+  { id: "8", user: "henry@company.com", action: "Sent 61 messages", target: "Sales Operations", time: "4 hr ago", type: "chat" },
+];
+
+export const summaryStats = {
+  totalUsers: 347,
+  activeUsersToday: 89,
+  userGrowthPct: 12.4,
+  totalMessages: 98430,
+  messagesToday: 1284,
+  messageGrowthPct: 8.7,
+  totalWorkspaces: 144,
+  workspacesGrowthPct: 5.2,
+  totalDocuments: 3343,
+  storageUsed: "18.4 GB",
+  totalApiCalls: 284920,
+  avgResponseMs: 834,
+  errorRate: 0.34,
+  uptime: 99.97,
+};
