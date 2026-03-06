@@ -283,7 +283,7 @@ const Admin = () => {
             <div className="bg-card border border-border rounded-xl p-5">
               <h3 className="text-sm font-semibold text-foreground mb-4">System Health Summary</h3>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
+                  {[
                   { label: "Database", status: "Healthy", latency: "12 ms" },
                   { label: "AI Engine", status: "Healthy", latency: `${summaryStats.avgResponseMs} ms` },
                   { label: "File Storage", status: "Healthy", latency: "28 ms" },
@@ -292,8 +292,8 @@ const Admin = () => {
                   <div key={service.label} className="border border-border rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-foreground">{service.label}</span>
-                      <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                      <span className="flex items-center gap-1 text-xs font-medium text-primary">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block opacity-70" />
                         {service.status}
                       </span>
                     </div>
