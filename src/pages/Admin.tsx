@@ -428,112 +428,257 @@ const Admin = () => {
         );
 
       // ── WORKSPACES ──────────────────────────────────────────────────────
-      case "workspaces":
+      case "workspaces": {
+        const selectedTenant = tenants.find(t => t.id === selectedTenantId) ?? null;
+        const visibleWorkspaces = workspaceDetails.filter(w =>
+          selectedTenantId ? w.tenantId === selectedTenantId : true
+        );
+        const planColors: Record<string, string> = { starter: "#94a3b8", pro: "#6366f1", enterprise: "#f59e0b" };
+        const planBg: Record<string, string>     = { starter: "#94a3b818", pro: "#6366f118", enterprise: "#f59e0b18" };
+        const statusColors: Record<string, string> = { active: "#10b981", trial: "#3b82f6", suspended: "#ef4444" };
+
         return (
           <div className="space-y-5">
-            {/* Summary KPIs */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <Stat label="Total Workspaces" value={summaryStats.totalWorkspaces} trend={summaryStats.workspacesGrowthPct} icon={FolderOpen} color="#6366f1" />
-              <Stat label="Documents"        value={summaryStats.totalDocuments.toLocaleString()} sub="all workspaces" icon={FileText}  color="#f59e0b" />
-              <Stat label="Storage Used"     value={summaryStats.storageUsed} sub="total" icon={Database} color="#10b981" />
-              <Stat label="Shared Spaces"    value="42" sub="team workspaces" icon={Users} color="#8b5cf6" />
+            {/* Platform KPIs */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <Stat label="Tenants"      value={`${summaryStats.activeTenants} / ${summaryStats.totalTenants}`} sub="active" icon={Building2} color="#6366f1" />
+              <Stat label="Workspaces"   value={summaryStats.totalWorkspaces}    sub="across all tenants" icon={FolderOpen}  color="#f59e0b" />
+              <Stat label="Documents"    value={summaryStats.totalDocuments.toLocaleString()} sub="total indexed" icon={FileText} color="#10b981" />
+              <Stat label="Storage"      value={summaryStats.storageUsed}        sub="total used"  icon={Database}   color="#8b5cf6" />
+              <Stat label="Data Sources" value={`${dataSourceStats.active} / ${dataSourceStats.total}`} sub={`${dataSourceStats.error} errors`} icon={Layers} color="#06b6d4" />
             </div>
 
-            {/* Distribution chart */}
-            <CC title="Workspace Distribution" sub="Workspaces, documents and messages by type">
-              <AdminChart data={workspaceUsageData} type="bar" height={180} xKey="name" dataKeys={[{ key: "workspaces", label: "Workspaces", color: P }, { key: "documents", label: "Documents", color: A }, { key: "messages", label: "Messages", color: G }]} />
-            </CC>
+            {/* ── Tenant table ──────────────────────────────────────────── */}
+            <div className="rounded-xl bg-card border border-border overflow-hidden">
+              <div className="px-4 py-3 border-b border-border bg-muted/20 flex items-center justify-between">
+                <div>
+                  <p className="text-[13px] font-semibold text-foreground">Tenants</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Click a row to filter workspaces by tenant</p>
+                </div>
+                {selectedTenantId && (
+                  <button onClick={() => { setSelectedTenantId(null); setExpandedWorkspaces(new Set()); }}
+                    className="text-[11px] font-semibold text-primary hover:underline">
+                    ← Show all tenants
+                  </button>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {["Tenant","Plan","Status","Users","Workspaces","Storage","Data Sources","Last Active",""].map((h, idx) => (
+                        <th key={`h-${idx}`} className={cn("px-4 py-2.5 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap", idx >= 3 && idx <= 7 && "text-right")}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tenants.map((t, i) => {
+                      const isSel = selectedTenantId === t.id;
+                      return (
+                        <tr key={t.id} onClick={() => { setSelectedTenantId(isSel ? null : t.id); setExpandedWorkspaces(new Set()); }}
+                          className={cn("border-b border-border/60 last:border-0 cursor-pointer transition-colors group",
+                            isSel ? "bg-primary/5 border-l-2 border-l-primary" : "hover:bg-muted/20",
+                            i % 2 === 0 && !isSel && "bg-muted/5")}>
+                          <td className="px-4 py-3 min-w-[180px]">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0"
+                                style={{ background: planBg[t.plan], color: planColors[t.plan] }}>{t.name.charAt(0)}</div>
+                              <div>
+                                <p className="text-[13px] font-semibold text-foreground leading-none">{t.name}</p>
+                                <p className="text-[10px] text-muted-foreground mt-0.5">{t.domain}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize"
+                              style={{ background: planBg[t.plan], color: planColors[t.plan] }}>{t.plan}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold">
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: statusColors[t.status] }} />
+                              <span style={{ color: statusColors[t.status] }} className="capitalize">{t.status}</span>
+                            </span>
+                            {t.status === "trial" && t.trialEndsAt && (
+                              <p className="text-[10px] text-amber-500 mt-0.5">Ends {t.trialEndsAt}</p>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <p className="text-[13px] font-medium text-foreground">{t.users}</p>
+                            <p className="text-[10px] text-muted-foreground">/ {t.maxUsers}</p>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <p className="text-[13px] font-medium text-foreground">{t.workspacesCount}</p>
+                            <p className="text-[10px] text-muted-foreground">/ {t.maxWorkspaces === 999 ? "∞" : t.maxWorkspaces}</p>
+                          </td>
+                          <td className="px-4 py-3 text-right min-w-[130px]">
+                            <p className="text-[13px] font-medium text-foreground">{t.storage}</p>
+                            <div className="flex items-center gap-1 mt-1 justify-end">
+                              <div className="w-16 h-1 bg-muted rounded-full overflow-hidden">
+                                <div className="h-full rounded-full" style={{ width: `${t.storageUsedPct}%`, background: t.storageUsedPct > 80 ? "#ef4444" : t.storageUsedPct > 60 ? "#f59e0b" : "#10b981" }} />
+                              </div>
+                              <span className="text-[10px] text-muted-foreground">{t.storageUsedPct}%</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right text-[13px] text-muted-foreground">{t.dataSources}</td>
+                          <td className="px-4 py-3 text-right text-[12px] text-muted-foreground whitespace-nowrap">{t.lastActive}</td>
+                          <td className="px-4 py-3 text-right">
+                            <span className="text-[11px] font-semibold text-primary group-hover:underline whitespace-nowrap">
+                              {isSel ? "Deselect" : "View →"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-            {/* Per-workspace detail cards */}
+            {/* ── Workspace cards ──────────────────────────────────────── */}
             <div>
-              <p className="text-[13px] font-semibold text-foreground mb-3">Workspace Overview</p>
-              <div className="space-y-3">
-                {workspaceDetails.map((ws) => {
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-[13px] font-semibold text-foreground">
+                    {selectedTenant ? `${selectedTenant.name} — Workspaces` : "All Workspaces"}
+                    <span className="ml-2 text-[11px] font-normal text-muted-foreground">({visibleWorkspaces.length})</span>
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Click a workspace row to expand its data sources</p>
+                </div>
+                {visibleWorkspaces.length > 0 && (
+                  <button
+                    onClick={() => setExpandedWorkspaces(
+                      expandedWorkspaces.size === visibleWorkspaces.length
+                        ? new Set()
+                        : new Set(visibleWorkspaces.map(w => w.id))
+                    )}
+                    className="text-[11px] font-semibold text-primary hover:underline">
+                    {expandedWorkspaces.size === visibleWorkspaces.length ? "Collapse all" : "Expand all"}
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-2.5">
+                {visibleWorkspaces.map((ws) => {
                   const wsSources = dataSources.filter(ds => ws.dataSourceIds.includes(ds.id));
+                  const isExpanded = expandedWorkspaces.has(ws.id);
                   const typeColor = { personal: "#6366f1", shared: "#10b981", organization: "#f59e0b" }[ws.type];
+                  const errCount = wsSources.reduce((s, ds) => s + ds.errorCount, 0);
+                  const hasError = wsSources.some(ds => ds.status === "error");
+                  const tenantLabel = tenants.find(t => t.id === ws.tenantId)?.name;
+
                   return (
-                    <div key={ws.id} className="rounded-xl bg-card border border-border overflow-hidden">
-                      {/* Workspace header */}
-                      <div className="px-4 py-3 flex items-center justify-between bg-muted/20 border-b border-border">
-                        <div className="flex items-center gap-2.5">
+                    <div key={ws.id} className={cn("rounded-xl bg-card border overflow-hidden transition-shadow hover:shadow-sm",
+                      hasError ? "border-rose-500/40" : "border-border")}>
+                      {/* Header row — click to expand */}
+                      <button onClick={() => toggleWorkspace(ws.id)}
+                        className="w-full px-4 py-3 flex items-center justify-between bg-muted/20 hover:bg-muted/30 transition-colors text-left">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
                           <div className="p-1.5 rounded-lg shrink-0" style={{ background: `${typeColor}18` }}>
                             <FolderOpen className="w-3.5 h-3.5" style={{ color: typeColor }} />
                           </div>
-                          <div>
-                            <p className="text-[13px] font-semibold text-foreground leading-none">{ws.name}</p>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">Last active {ws.lastActive}</p>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[13px] font-semibold text-foreground">{ws.name}</span>
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 capitalize shrink-0">{ws.type}</Badge>
+                              {ws.status === "inactive" && <Badge variant="destructive" className="text-[10px] px-1.5 py-0 shrink-0">Inactive</Badge>}
+                              {hasError && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 bg-rose-500/10 text-rose-500">
+                                  <AlertTriangle className="w-2.5 h-2.5" />{errCount} error{errCount !== 1 ? "s" : ""}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                              {!selectedTenantId && tenantLabel && <span className="font-medium text-foreground/60">{tenantLabel} · </span>}
+                              Last active {ws.lastActive} · {wsSources.length} data source{wsSources.length !== 1 ? "s" : ""}
+                            </p>
                           </div>
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 capitalize ml-1">{ws.type}</Badge>
                         </div>
-                        {/* Quick stats */}
-                        <div className="flex items-center gap-5">
-                          {[
-                            { icon: Users,       label: "Users",    value: ws.users },
-                            { icon: MessageSquare, label: "Messages", value: ws.messages.toLocaleString() },
-                            { icon: FileText,    label: "Docs",     value: ws.documents.toLocaleString() },
-                            { icon: HardDrive,   label: "Storage",  value: ws.storage },
-                            { icon: BarChart3,   label: "Sessions", value: ws.sessions },
-                          ].map(({ icon: Icon, label, value }) => (
-                            <div key={label} className="text-center hidden sm:block">
+                        {/* Metrics + chevron */}
+                        <div className="flex items-center gap-4 shrink-0 ml-4">
+                          {([
+                            { icon: Users,         label: "Users",    value: String(ws.users) },
+                            { icon: MessageSquare, label: "Msgs",     value: ws.messages.toLocaleString() },
+                            { icon: FileText,      label: "Docs",     value: ws.documents.toLocaleString() },
+                            { icon: HardDrive,     label: "Storage",  value: ws.storage },
+                            { icon: BarChart3,     label: "Sessions", value: String(ws.sessions) },
+                          ] as { icon: React.ElementType; label: string; value: string }[]).map(({ icon: Icon, label, value }) => (
+                            <div key={label} className="text-center hidden lg:block">
                               <p className="text-[10px] text-muted-foreground">{label}</p>
-                              <p className="text-[13px] font-semibold text-foreground">{value}</p>
+                              <p className="text-[12px] font-semibold text-foreground">{value}</p>
                             </div>
                           ))}
+                          <div className="pl-3 border-l border-border">
+                            {isExpanded
+                              ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                              : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                          </div>
                         </div>
-                      </div>
+                      </button>
 
-                      {/* Data sources for this workspace */}
-                      {wsSources.length > 0 ? (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b border-border/60">
-                                <th className="px-4 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Data Source</th>
-                                <th className="px-4 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Type</th>
-                                <th className="px-4 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
-                                <th className="px-4 py-2 text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Docs</th>
-                                <th className="px-4 py-2 text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Storage</th>
-                                <th className="px-4 py-2 text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Queries/mo</th>
-                                <th className="px-4 py-2 text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Last Sync</th>
-                                <th className="px-4 py-2 text-right text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Errors</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {wsSources.map((ds, i) => (
-                                <tr key={ds.id} className={cn("border-b border-border/40 last:border-0 hover:bg-muted/20 transition-colors", i % 2 === 0 && "bg-muted/5")}>
-                                  <td className="px-4 py-2.5">
-                                    <div className="flex items-center gap-2">
-                                      <img src={LOGO_MAP[ds.logo]} alt={ds.type} className="w-4 h-4 shrink-0 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                                      <span className="text-[12px] font-medium text-foreground truncate">{ds.name}</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2.5 text-[11px] text-muted-foreground">{ds.type}</td>
-                                  <td className="px-4 py-2.5"><StatusBadge s={ds.status} /></td>
-                                  <td className="px-4 py-2.5 text-right text-[12px] text-muted-foreground">{ds.documents.toLocaleString()}</td>
-                                  <td className="px-4 py-2.5 text-right text-[12px] text-muted-foreground">{ds.storageUsed}</td>
-                                  <td className="px-4 py-2.5 text-right text-[12px] text-muted-foreground">{ds.queriesThisMonth.toLocaleString()}</td>
-                                  <td className="px-4 py-2.5 text-right text-[11px] text-muted-foreground whitespace-nowrap">{ds.lastSync}</td>
-                                  <td className="px-4 py-2.5 text-right">
-                                    {ds.errorCount > 0
-                                      ? <span className="text-[12px] font-bold text-rose-500">{ds.errorCount}</span>
-                                      : <span className="text-[12px] font-bold text-emerald-500">—</span>
-                                    }
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                      {/* Expandable data-sources panel */}
+                      {isExpanded && (
+                        <div className="border-t border-border">
+                          {wsSources.length > 0 ? (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b border-border/60 bg-muted/10">
+                                    {["Data Source","Type","Status","Docs","Storage","Queries/mo","Sync Freq","Last Sync","Errors"].map((h, idx) => (
+                                      <th key={`ds-h-${idx}`} className={cn("px-4 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap", idx === 0 || idx === 1 || idx === 2 ? "text-left" : "text-right")}>{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {wsSources.map((ds, i) => (
+                                    <tr key={ds.id} className={cn("border-b border-border/40 last:border-0 hover:bg-muted/20 transition-colors",
+                                      i % 2 === 0 && "bg-muted/5",
+                                      ds.status === "error" && "bg-rose-500/5")}>
+                                      <td className="px-4 py-2.5">
+                                        <div className="flex items-center gap-2">
+                                          <img src={LOGO_MAP[ds.logo]} alt={ds.type} className="w-4 h-4 shrink-0 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                                          <span className="text-[12px] font-medium text-foreground">{ds.name}</span>
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-2.5 text-[11px] text-muted-foreground">{ds.type}</td>
+                                      <td className="px-4 py-2.5"><StatusBadge s={ds.status} /></td>
+                                      <td className="px-4 py-2.5 text-right text-[12px] text-muted-foreground">{ds.documents.toLocaleString()}</td>
+                                      <td className="px-4 py-2.5 text-right text-[12px] text-muted-foreground">{ds.storageUsed}</td>
+                                      <td className="px-4 py-2.5 text-right text-[12px] text-muted-foreground">{ds.queriesThisMonth.toLocaleString()}</td>
+                                      <td className="px-4 py-2.5 text-right text-[11px] text-muted-foreground whitespace-nowrap">{ds.syncFrequency}</td>
+                                      <td className="px-4 py-2.5 text-right text-[11px] text-muted-foreground whitespace-nowrap">{ds.lastSync}</td>
+                                      <td className="px-4 py-2.5 text-right">
+                                        {ds.errorCount > 0
+                                          ? <span className="text-[12px] font-bold text-rose-500">{ds.errorCount}</span>
+                                          : <span className="text-[12px] font-bold text-emerald-500">—</span>}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <div className="px-4 py-6 flex flex-col items-center gap-2">
+                              <Database className="w-5 h-5 text-muted-foreground/30" />
+                              <p className="text-[12px] text-muted-foreground">No data sources connected to this workspace</p>
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <div className="px-4 py-3 text-[12px] text-muted-foreground italic">No data sources connected</div>
                       )}
                     </div>
                   );
                 })}
+
+                {visibleWorkspaces.length === 0 && (
+                  <div className="rounded-xl bg-card border border-border px-6 py-12 flex flex-col items-center gap-2">
+                    <FolderOpen className="w-8 h-8 text-muted-foreground/30" />
+                    <p className="text-sm text-muted-foreground">No workspaces found for this tenant</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         );
+      }
 
       // ── SYSTEM ──────────────────────────────────────────────────────────
       case "system":
