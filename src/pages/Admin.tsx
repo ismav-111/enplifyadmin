@@ -510,15 +510,11 @@ const Admin = () => {
         style={{ background: SB.bg, borderRight: `1px solid ${SB.border}` }}
       >
         {/* Logo row */}
-        <div className="flex items-center h-14 shrink-0 px-3 gap-2.5" style={{ borderBottom: `1px solid ${SB.border}` }}>
-          <div className="w-7 h-7 rounded-lg bg-indigo-500 flex items-center justify-center shrink-0">
-            <BarChart3 className="w-3.5 h-3.5 text-white" />
-          </div>
-          {!collapsed && (
-            <div className="min-w-0">
-              <p className="text-[13px] font-bold leading-tight truncate" style={{ color: SB.navActive }}>Admin Panel</p>
-              <p className="text-[10px] truncate" style={{ color: SB.mutedText }}>Enplify.ai</p>
-            </div>
+        <div className="flex items-center h-14 shrink-0 px-3" style={{ borderBottom: `1px solid ${SB.border}` }}>
+          {collapsed ? (
+            <img src={enplifyLogo} alt="Enplify.ai" className="h-4 object-contain" />
+          ) : (
+            <img src={enplifyLogo} alt="Enplify.ai" className="h-5 object-contain" />
           )}
         </div>
 
