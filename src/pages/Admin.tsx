@@ -388,29 +388,61 @@ const Admin = () => {
             </div>
 
             {/* Admin remark display */}
-            {remark && !isEditing && (
-              <div className="rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 mb-2">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-bold text-primary uppercase tracking-wide">Admin Remark</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground">{remark.author.split("@")[0]} · {remark.timestamp}</span>
-                    <button
-                      onClick={() => startEditRemark(fb.id)}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                    >
+            {remark && !isEditing && (() => {
+              const reviewer = getAdminByEmail(remark.author);
+              return (
+                <div className="rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 mb-2">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-primary uppercase tracking-wide">Admin Remark</span>
+                      <span className={cn("inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full border", REMARK_STATUS_CFG[remark.status].cls)}>
+                        {(() => { const Icon = REMARK_STATUS_CFG[remark.status].icon; return <Icon className="w-2.5 h-2.5" />; })()}
+                        {REMARK_STATUS_CFG[remark.status].label}
+                      </span>
+                    </div>
+                    <button onClick={() => startEditRemark(fb.id)} className="text-muted-foreground hover:text-foreground transition-colors">
                       <Pencil className="w-3 h-3" />
                     </button>
                   </div>
+                  <p className="text-[12px] text-foreground/80 leading-relaxed mb-2">{remark.text}</p>
+                  {/* Author + timestamp row */}
+                  <div className="flex items-center gap-1.5 pt-1.5 border-t border-primary/10">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 text-white"
+                      style={{ background: reviewer.color }}>
+                      {reviewer.initials}
+                    </div>
+                    <span className="text-[11px] font-semibold text-foreground/70">{reviewer.name}</span>
+                    <span className="text-[10px] text-muted-foreground">· {remark.timestamp}</span>
+                  </div>
                 </div>
-                <p className="text-[12px] text-foreground/80 leading-relaxed">{remark.text}</p>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Remark editor */}
             {isEditing ? (
               <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-2">
+                {/* Reviewer selector */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Set status:</span>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Reviewer:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {ADMIN_TEAM.map(admin => (
+                      <button key={admin.email} onClick={() => setRemarkAuthorDraft(admin.email)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+                          remarkAuthorDraft === admin.email
+                            ? "border-primary/60 bg-primary/10 text-primary"
+                            : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}>
+                        <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0"
+                          style={{ background: admin.color }}>{admin.initials[0]}</span>
+                        {admin.name.split(" ")[0]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Status selector */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Status:</span>
                   {(["reviewed", "escalated", "resolved"] as RemarkStatus[]).map(s => {
                     const cfg = REMARK_STATUS_CFG[s];
                     const Icon = cfg.icon;
@@ -432,18 +464,29 @@ const Admin = () => {
                   rows={2}
                   className="w-full text-[12px] bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 resize-none"
                 />
-                <div className="flex items-center gap-2 justify-end">
-                  <button onClick={cancelRemark}
-                    className="text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded">
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => saveRemark(fb.id)}
-                    disabled={!remarkDraft.trim()}
-                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                  >
-                    <Send className="w-3 h-3" /> Save Remark
-                  </button>
+                <div className="flex items-center gap-2 justify-between">
+                  {/* Preview who's adding */}
+                  <div className="flex items-center gap-1.5">
+                    {(() => { const a = getAdminByEmail(remarkAuthorDraft); return (
+                      <>
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ background: a.color }}>{a.initials}</div>
+                        <span className="text-[11px] text-muted-foreground">{a.name}</span>
+                      </>
+                    ); })()}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={cancelRemark}
+                      className="text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded">
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => saveRemark(fb.id)}
+                      disabled={!remarkDraft.trim()}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    >
+                      <Send className="w-3 h-3" /> Save Remark
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
