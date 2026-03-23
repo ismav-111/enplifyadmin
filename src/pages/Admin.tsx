@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Users, MessageSquare, FolderOpen, FileText,
@@ -9,7 +9,7 @@ import {
   RefreshCw, AlertTriangle, CheckCircle2, Layers,
   HardDrive, BarChart3, XCircle, Settings, User,
   Building2, ThumbsUp, ThumbsDown, MessageCircle,
-  ArrowLeft
+  ArrowLeft, Flag, Pencil, CheckCheck, Send
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -48,12 +48,23 @@ const LOGO_MAP: Record<string, string> = {
   onedrive, servicenow, "sql-database": sqlDatabase, zoho,
 };
 
+// ── Admin remark types ────────────────────────────────────────────────────────
+type RemarkStatus = "reviewed" | "escalated" | "resolved";
+interface AdminRemark {
+  feedbackId: string;
+  text: string;
+  status: RemarkStatus;
+  author: string;
+  timestamp: string;
+}
+
 // ── Navigation ────────────────────────────────────────────────────────────────
-type Section = "overview" | "tenants" | "system";
+type Section = "overview" | "tenants" | "feedback" | "system";
 
 const NAV: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: "overview", label: "Platform Overview", icon: LayoutDashboard },
   { id: "tenants",  label: "Tenants",            icon: Building2 },
+  { id: "feedback", label: "Feedback",            icon: Flag },
   { id: "system",   label: "System & API",        icon: Server },
 ];
 
@@ -139,6 +150,12 @@ const StatusBadge = ({ s }: { s: DataSource["status"] }) => {
   );
 };
 
+const REMARK_STATUS_CFG: Record<RemarkStatus, { label: string; cls: string; icon: React.ElementType }> = {
+  reviewed:  { label: "Reviewed",  cls: "bg-blue-500/10 text-blue-500 border-blue-500/20",    icon: CheckCheck },
+  escalated: { label: "Escalated", cls: "bg-amber-500/10 text-amber-500 border-amber-500/20", icon: AlertTriangle },
+  resolved:  { label: "Resolved",  cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20", icon: CheckCircle2 },
+};
+
 const planColors: Record<string, string> = { starter: "#94a3b8", pro: "#6366f1", enterprise: "#f59e0b" };
 const planBg: Record<string, string>     = { starter: "#94a3b818", pro: "#6366f118", enterprise: "#f59e0b18" };
 const statusColors: Record<string, string> = { active: "#10b981", trial: "#3b82f6", suspended: "#ef4444" };
@@ -165,6 +182,18 @@ const Admin = () => {
   // Workspace feedback filter
   const [wsFeedbackFilter, setWsFeedbackFilter] = useState<"all" | "positive" | "negative">("all");
 
+  // Global feedback filters
+  const [fbSearch, setFbSearch] = useState("");
+  const [fbTypeFilter, setFbTypeFilter] = useState<"all" | "positive" | "negative">("all");
+  const [fbTenantFilter, setFbTenantFilter] = useState<string>("all");
+  const [fbStatusFilter, setFbStatusFilter] = useState<"all" | "reviewed" | "escalated" | "resolved" | "unreviewed">("all");
+
+  // Admin remarks state — local (in real app these would be persisted)
+  const [adminRemarks, setAdminRemarks] = useState<Record<string, AdminRemark>>({});
+  const [editingRemarkId, setEditingRemarkId] = useState<string | null>(null);
+  const [remarkDraft, setRemarkDraft] = useState("");
+  const [remarkStatusDraft, setRemarkStatusDraft] = useState<RemarkStatus>("reviewed");
+
   const days = dateRange.preset ?? 30;
   const userData = sliceByDays(userGrowthData, days);
   const msgData  = sliceByDays(messageVolumeData, days);
@@ -184,6 +213,9 @@ const Admin = () => {
     chatSessions.filter(s => s.workspaceId === selectedWorkspaceId),
     [selectedWorkspaceId]
   );
+
+  const totalNegativeFeedback = feedbackMessages.filter(f => f.feedbackType === "negative").length;
+  const unreviewedCount = feedbackMessages.filter(f => !adminRemarks[f.id]).length;
 
   const toggleWorkspace = (id: string) => {
     setExpandedWorkspaces(prev => {
@@ -214,6 +246,35 @@ const Admin = () => {
     setSelectedWorkspaceId(null);
   };
 
+  // ── Remark helpers ────────────────────────────────────────────────────────
+  const startEditRemark = (fbId: string) => {
+    const existing = adminRemarks[fbId];
+    setRemarkDraft(existing?.text ?? "");
+    setRemarkStatusDraft(existing?.status ?? "reviewed");
+    setEditingRemarkId(fbId);
+  };
+
+  const saveRemark = (fbId: string) => {
+    if (!remarkDraft.trim()) return;
+    setAdminRemarks(prev => ({
+      ...prev,
+      [fbId]: {
+        feedbackId: fbId,
+        text: remarkDraft.trim(),
+        status: remarkStatusDraft,
+        author: "admin@enplify.ai",
+        timestamp: new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+      },
+    }));
+    setEditingRemarkId(null);
+    setRemarkDraft("");
+  };
+
+  const cancelRemark = () => {
+    setEditingRemarkId(null);
+    setRemarkDraft("");
+  };
+
   // ── Active nav label ──────────────────────────────────────────────────────
   const activeNav = NAV.find(n => n.id === section)!;
 
@@ -229,6 +290,161 @@ const Admin = () => {
   const totalUp   = summaryStats.totalThumbsUp;
   const totalDown = summaryStats.totalThumbsDown;
   const satisfactionPct = Math.round((totalUp / (totalUp + totalDown)) * 100);
+
+  // ── Feedback card — shared between workspace detail and global feedback view ──
+  const renderFeedbackCard = (fb: FeedbackMessage, showTenantInfo = false) => {
+    const remark = adminRemarks[fb.id];
+    const isEditing = editingRemarkId === fb.id;
+    const tenantName = tenants.find(t => t.id === fb.tenantId)?.name ?? fb.tenantId;
+    const workspaceName = workspaceDetails.find(w => w.id === fb.workspaceId)?.name ?? fb.workspaceId;
+
+    return (
+      <div key={fb.id} className={cn(
+        "px-4 py-3.5 hover:bg-muted/20 transition-colors",
+        fb.feedbackType === "negative" && "border-l-[3px] border-l-rose-500/50"
+      )}>
+        <div className="flex items-start gap-3">
+          {/* Feedback type icon */}
+          <div className={cn(
+            "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+            fb.feedbackType === "positive" ? "bg-emerald-500/10" : "bg-rose-500/10"
+          )}>
+            {fb.feedbackType === "positive"
+              ? <ThumbsUp className="w-3.5 h-3.5 text-emerald-500" />
+              : <ThumbsDown className="w-3.5 h-3.5 text-rose-500" />}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            {/* Header row */}
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className="text-[12px] font-semibold text-foreground">{fb.user.split("@")[0]}</span>
+              {showTenantInfo && (
+                <>
+                  <span className="text-[10px] text-muted-foreground">·</span>
+                  <button
+                    onClick={() => { selectTenant(fb.tenantId); setSection("tenants"); }}
+                    className="text-[11px] font-medium text-primary/80 hover:underline"
+                  >{tenantName}</button>
+                  <span className="text-[10px] text-muted-foreground">/</span>
+                  <button
+                    onClick={() => { selectTenant(fb.tenantId); selectWorkspace(fb.workspaceId); setSection("tenants"); }}
+                    className="text-[11px] font-medium text-primary/80 hover:underline"
+                  >{workspaceName}</button>
+                </>
+              )}
+              <span className="text-[10px] text-muted-foreground">in</span>
+              <span className="text-[11px] font-medium text-foreground/70 truncate max-w-[160px]">{fb.sessionTitle}</span>
+              <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{fb.submittedAt}</span>
+              {/* Remark status badge */}
+              {remark && (
+                <span className={cn("inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0",
+                  REMARK_STATUS_CFG[remark.status].cls)}>
+                  {(() => { const Icon = REMARK_STATUS_CFG[remark.status].icon; return <Icon className="w-2.5 h-2.5" />; })()}
+                  {REMARK_STATUS_CFG[remark.status].label}
+                </span>
+              )}
+            </div>
+
+            {/* User query */}
+            <div className="flex items-start gap-1.5 mb-1.5">
+              <MessageCircle className="w-3 h-3 text-muted-foreground/60 shrink-0 mt-0.5" />
+              <p className="text-[11px] text-muted-foreground italic truncate">"{fb.userMessage}"</p>
+            </div>
+
+            {/* AI snippet */}
+            <div className="rounded-lg bg-muted/30 px-3 py-2 mb-2 border-l-2 border-border">
+              <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
+                <span className="font-semibold text-foreground/60">AI: </span>{fb.aiMessageSnippet}
+              </p>
+            </div>
+
+            {/* User feedback comment */}
+            <div className={cn(
+              "rounded-lg px-3 py-2 mb-2",
+              fb.feedbackType === "positive" ? "bg-emerald-500/8" : "bg-rose-500/8"
+            )}>
+              <p className={cn(
+                "text-[12px] font-medium leading-relaxed",
+                fb.feedbackType === "positive" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"
+              )}>
+                "{fb.comment}"
+              </p>
+            </div>
+
+            {/* Admin remark display */}
+            {remark && !isEditing && (
+              <div className="rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 mb-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold text-primary uppercase tracking-wide">Admin Remark</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground">{remark.author.split("@")[0]} · {remark.timestamp}</span>
+                    <button
+                      onClick={() => startEditRemark(fb.id)}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[12px] text-foreground/80 leading-relaxed">{remark.text}</p>
+              </div>
+            )}
+
+            {/* Remark editor */}
+            {isEditing ? (
+              <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Set status:</span>
+                  {(["reviewed", "escalated", "resolved"] as RemarkStatus[]).map(s => {
+                    const cfg = REMARK_STATUS_CFG[s];
+                    const Icon = cfg.icon;
+                    return (
+                      <button key={s} onClick={() => setRemarkStatusDraft(s)}
+                        className={cn(
+                          "inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+                          remarkStatusDraft === s ? cfg.cls : "border-border bg-muted/40 text-muted-foreground hover:bg-muted"
+                        )}>
+                        <Icon className="w-2.5 h-2.5" />{cfg.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <textarea
+                  value={remarkDraft}
+                  onChange={e => setRemarkDraft(e.target.value)}
+                  placeholder="Write your remark or internal note…"
+                  rows={2}
+                  className="w-full text-[12px] bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 resize-none"
+                />
+                <div className="flex items-center gap-2 justify-end">
+                  <button onClick={cancelRemark}
+                    className="text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => saveRemark(fb.id)}
+                    disabled={!remarkDraft.trim()}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    <Send className="w-3 h-3" /> Save Remark
+                  </button>
+                </div>
+              </div>
+            ) : (
+              !remark && (
+                <button
+                  onClick={() => startEditRemark(fb.id)}
+                  className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 px-2.5 py-1 rounded-lg border border-border/60 transition-colors"
+                >
+                  <Pencil className="w-3 h-3" /> Add Remark
+                </button>
+              )
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  SECTION: OVERVIEW
@@ -354,13 +570,6 @@ const Admin = () => {
     });
 
     const hasActiveFilters = tenantSearch !== "" || tenantPlanFilter !== "all" || tenantStatusFilter !== "all";
-
-    const planChipStyle = (p: string) => ({
-      active: p === tenantPlanFilter,
-      bg:     p === tenantPlanFilter
-        ? (p === "all" ? "bg-primary text-primary-foreground" : "")
-        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground",
-    });
 
     return (
       <div className="space-y-5">
@@ -835,6 +1044,9 @@ const Admin = () => {
     const wsSat  = wsUp + wsDown > 0 ? Math.round((wsUp / (wsUp + wsDown)) * 100) : 0;
     const activeSessions = workspaceSessions.filter(s => s.status === "active").length;
 
+    const wsFeedback = feedbackMessages.filter(f => f.workspaceId === ws.id);
+    const filteredFeedback = wsFeedbackFilter === "all" ? wsFeedback : wsFeedback.filter(f => f.feedbackType === wsFeedbackFilter);
+
     return (
       <div className="space-y-5">
         {/* Breadcrumb back */}
@@ -995,101 +1207,43 @@ const Admin = () => {
         </div>
 
         {/* ── Feedback Messages ─────────────────────────────────────── */}
-        {(() => {
-          const wsFeedback = feedbackMessages.filter(f => f.workspaceId === ws.id);
-          const filtered = wsFeedbackFilter === "all" ? wsFeedback : wsFeedback.filter(f => f.feedbackType === wsFeedbackFilter);
-          if (wsFeedback.length === 0) return null;
-          return (
-            <div className="rounded-xl bg-card border border-border overflow-hidden">
-              <div className="px-4 py-3 border-b border-border bg-muted/20 flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <p className="text-[13px] font-semibold text-foreground">
-                    User Feedback Messages
-                    <span className="ml-2 text-[11px] font-normal text-muted-foreground">({filtered.length})</span>
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Written comments submitted by users after rating AI responses
-                  </p>
-                </div>
-                <div className="flex gap-1.5">
-                  {(["all","positive","negative"] as const).map(f => (
-                    <button key={f} onClick={() => setWsFeedbackFilter(f)}
-                      className={cn(
-                        "inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full capitalize transition-colors border",
-                        wsFeedbackFilter === f
-                          ? f === "positive" ? "bg-emerald-500 border-emerald-500 text-white"
-                            : f === "negative" ? "bg-rose-500 border-rose-500 text-white"
-                            : "bg-primary border-primary text-primary-foreground"
-                          : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      )}>
-                      {f === "positive" && <ThumbsUp className="w-2.5 h-2.5" />}
-                      {f === "negative" && <ThumbsDown className="w-2.5 h-2.5" />}
-                      {f === "all" ? "All" : f}
-                    </button>
-                  ))}
-                </div>
+        {wsFeedback.length > 0 && (
+          <div className="rounded-xl bg-card border border-border overflow-hidden">
+            <div className="px-4 py-3 border-b border-border bg-muted/20 flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <p className="text-[13px] font-semibold text-foreground">
+                  User Feedback Messages
+                  <span className="ml-2 text-[11px] font-normal text-muted-foreground">({filteredFeedback.length})</span>
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Written comments submitted with ratings · Add remarks to track review status
+                </p>
               </div>
-              <div className="divide-y divide-border/60">
-                {filtered.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-[12px] text-muted-foreground">No feedback messages for this filter</div>
-                ) : filtered.map((fb) => (
-                  <div key={fb.id} className={cn(
-                    "px-4 py-3 hover:bg-muted/20 transition-colors",
-                    fb.feedbackType === "negative" && "border-l-2 border-l-rose-500/40"
-                  )}>
-                    <div className="flex items-start gap-3">
-                      {/* Feedback type icon */}
-                      <div className={cn(
-                        "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
-                        fb.feedbackType === "positive" ? "bg-emerald-500/10" : "bg-rose-500/10"
-                      )}>
-                        {fb.feedbackType === "positive"
-                          ? <ThumbsUp className="w-3.5 h-3.5 text-emerald-500" />
-                          : <ThumbsDown className="w-3.5 h-3.5 text-rose-500" />}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        {/* User + session + time */}
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className="text-[12px] font-semibold text-foreground">{fb.user.split("@")[0]}</span>
-                          <span className="text-[10px] text-muted-foreground">in</span>
-                          <span className="text-[11px] font-medium text-primary/80 truncate max-w-[160px]">{fb.sessionTitle}</span>
-                          <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{fb.submittedAt}</span>
-                        </div>
-
-                        {/* User query that triggered this */}
-                        <div className="flex items-start gap-1.5 mb-1.5">
-                          <MessageCircle className="w-3 h-3 text-muted-foreground/60 shrink-0 mt-0.5" />
-                          <p className="text-[11px] text-muted-foreground italic truncate">"{fb.userMessage}"</p>
-                        </div>
-
-                        {/* AI message snippet */}
-                        <div className="rounded-lg bg-muted/30 px-3 py-2 mb-2 border-l-2 border-border">
-                          <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
-                            <span className="font-semibold text-foreground/60">AI: </span>{fb.aiMessageSnippet}
-                          </p>
-                        </div>
-
-                        {/* Feedback comment */}
-                        <div className={cn(
-                          "rounded-lg px-3 py-2",
-                          fb.feedbackType === "positive" ? "bg-emerald-500/8" : "bg-rose-500/8"
-                        )}>
-                          <p className={cn(
-                            "text-[12px] font-medium leading-relaxed",
-                            fb.feedbackType === "positive" ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"
-                          )}>
-                            "{fb.comment}"
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              <div className="flex gap-1.5">
+                {(["all","positive","negative"] as const).map(f => (
+                  <button key={f} onClick={() => setWsFeedbackFilter(f)}
+                    className={cn(
+                      "inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full capitalize transition-colors border",
+                      wsFeedbackFilter === f
+                        ? f === "positive" ? "bg-emerald-500 border-emerald-500 text-white"
+                          : f === "negative" ? "bg-rose-500 border-rose-500 text-white"
+                          : "bg-primary border-primary text-primary-foreground"
+                        : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}>
+                    {f === "positive" && <ThumbsUp className="w-2.5 h-2.5" />}
+                    {f === "negative" && <ThumbsDown className="w-2.5 h-2.5" />}
+                    {f === "all" ? "All" : f}
+                  </button>
                 ))}
               </div>
             </div>
-          );
-        })()}
+            <div className="divide-y divide-border/60">
+              {filteredFeedback.length === 0 ? (
+                <div className="px-4 py-8 text-center text-[12px] text-muted-foreground">No feedback messages for this filter</div>
+              ) : filteredFeedback.map(fb => renderFeedbackCard(fb, false))}
+            </div>
+          </div>
+        )}
 
         {/* Data Sources for this workspace */}
         {wsSources.length > 0 && (
@@ -1144,6 +1298,195 @@ const Admin = () => {
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
+  //  SECTION: FEEDBACK (global)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const renderFeedback = () => {
+    const reviewed  = Object.keys(adminRemarks).length;
+    const unreviewed = feedbackMessages.length - reviewed;
+
+    const filtered = feedbackMessages.filter(fb => {
+      const matchType   = fbTypeFilter === "all" || fb.feedbackType === fbTypeFilter;
+      const matchTenant = fbTenantFilter === "all" || fb.tenantId === fbTenantFilter;
+      const matchSearch = fbSearch.trim() === "" ||
+        fb.comment.toLowerCase().includes(fbSearch.toLowerCase()) ||
+        fb.user.toLowerCase().includes(fbSearch.toLowerCase()) ||
+        fb.sessionTitle.toLowerCase().includes(fbSearch.toLowerCase()) ||
+        fb.aiMessageSnippet.toLowerCase().includes(fbSearch.toLowerCase());
+      const remark = adminRemarks[fb.id];
+      const matchStatus = fbStatusFilter === "all" ? true
+        : fbStatusFilter === "unreviewed" ? !remark
+        : remark?.status === fbStatusFilter;
+      return matchType && matchTenant && matchSearch && matchStatus;
+    });
+
+    // Sort: negative first, then by no-remark first
+    const sorted = [...filtered].sort((a, b) => {
+      if (a.feedbackType !== b.feedbackType) return a.feedbackType === "negative" ? -1 : 1;
+      const aRemarked = !!adminRemarks[a.id];
+      const bRemarked = !!adminRemarks[b.id];
+      if (aRemarked !== bRemarked) return aRemarked ? 1 : -1;
+      return 0;
+    });
+
+    const posCount = feedbackMessages.filter(f => f.feedbackType === "positive").length;
+    const negCount = feedbackMessages.filter(f => f.feedbackType === "negative").length;
+
+    return (
+      <div className="space-y-5">
+        {/* KPIs */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <Stat label="Total Feedback"    value={feedbackMessages.length}  sub="across all workspaces"   icon={MessageCircle} color="#6366f1" />
+          <Stat label="Positive"          value={posCount}                  sub="thumbs up with comments" icon={ThumbsUp}      color="#10b981" />
+          <Stat label="Negative"          value={negCount}                  sub="need attention"          icon={ThumbsDown}    color="#ef4444" />
+          <Stat label="Unreviewed"        value={unreviewed}                sub="awaiting admin review"   icon={Flag}          color={unreviewed > 0 ? "#f59e0b" : "#10b981"} />
+        </div>
+
+        {/* Review progress bar */}
+        {feedbackMessages.length > 0 && (
+          <div className="rounded-xl bg-card border border-border px-4 py-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[12px] font-semibold text-foreground">Review Progress</p>
+              <span className="text-[12px] font-bold text-primary">{reviewed} / {feedbackMessages.length} reviewed</span>
+            </div>
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-primary transition-all duration-500"
+                style={{ width: `${(reviewed / feedbackMessages.length) * 100}%` }} />
+            </div>
+            <div className="flex items-center gap-4 mt-2">
+              {(["reviewed", "escalated", "resolved"] as RemarkStatus[]).map(s => {
+                const cnt = Object.values(adminRemarks).filter(r => r.status === s).length;
+                const cfg = REMARK_STATUS_CFG[s];
+                const Icon = cfg.icon;
+                return (
+                  <span key={s} className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border", cfg.cls)}>
+                    <Icon className="w-2.5 h-2.5" />{cnt} {cfg.label}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Filters */}
+        <div className="rounded-xl bg-card border border-border p-3 space-y-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by user, session, comment, or AI response…"
+              value={fbSearch}
+              onChange={e => setFbSearch(e.target.value)}
+              className="w-full pl-9 pr-10 py-2 text-[13px] bg-muted/30 border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 transition-colors"
+            />
+            {fbSearch && (
+              <button onClick={() => setFbSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <XCircle className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter chips */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Type filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Type</span>
+              <div className="flex gap-1">
+                {(["all", "positive", "negative"] as const).map(f => (
+                  <button key={f} onClick={() => setFbTypeFilter(f)}
+                    className={cn(
+                      "inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full capitalize transition-colors border",
+                      fbTypeFilter === f
+                        ? f === "positive" ? "bg-emerald-500 border-emerald-500 text-white"
+                          : f === "negative" ? "bg-rose-500 border-rose-500 text-white"
+                          : "bg-primary border-primary text-primary-foreground"
+                        : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}>
+                    {f === "positive" && <ThumbsUp className="w-2.5 h-2.5" />}
+                    {f === "negative" && <ThumbsDown className="w-2.5 h-2.5" />}
+                    {f === "all" ? "All types" : f}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="h-4 w-px bg-border hidden sm:block" />
+
+            {/* Tenant filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Tenant</span>
+              <select
+                value={fbTenantFilter}
+                onChange={e => setFbTenantFilter(e.target.value)}
+                className="text-[11px] font-semibold bg-muted/40 border border-border rounded-full px-2.5 py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer"
+              >
+                <option value="all">All tenants</option>
+                {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+
+            <div className="h-4 w-px bg-border hidden sm:block" />
+
+            {/* Review status filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Status</span>
+              <div className="flex gap-1">
+                {(["all", "unreviewed", "reviewed", "escalated", "resolved"] as const).map(s => {
+                  const isActive = fbStatusFilter === s;
+                  const cfg = s !== "all" && s !== "unreviewed" ? REMARK_STATUS_CFG[s] : null;
+                  const Icon = cfg?.icon;
+                  return (
+                    <button key={s} onClick={() => setFbStatusFilter(s)}
+                      className={cn(
+                        "inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full capitalize transition-colors border",
+                        isActive
+                          ? s === "unreviewed" ? "bg-amber-500 border-amber-500 text-white"
+                            : cfg ? cn(cfg.cls, "border-current") : "bg-primary border-primary text-primary-foreground"
+                          : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}>
+                      {Icon && <Icon className="w-2.5 h-2.5" />}
+                      {s === "all" ? "All" : s === "unreviewed" ? "Unreviewed" : cfg?.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {(fbSearch || fbTypeFilter !== "all" || fbTenantFilter !== "all" || fbStatusFilter !== "all") && (
+              <button
+                onClick={() => { setFbSearch(""); setFbTypeFilter("all"); setFbTenantFilter("all"); setFbStatusFilter("all"); }}
+                className="ml-auto text-[11px] font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1">
+                <XCircle className="w-3.5 h-3.5" /> Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Result count */}
+        <p className="text-[12px] text-muted-foreground">
+          Showing <span className="font-semibold text-foreground">{sorted.length}</span> of {feedbackMessages.length} messages
+          {sorted.length > 0 && <span className="ml-2 text-amber-500 font-semibold">· {sorted.filter(f => !adminRemarks[f.id]).length} unreviewed</span>}
+        </p>
+
+        {/* Feedback list */}
+        <div className="rounded-xl bg-card border border-border overflow-hidden">
+          {sorted.length === 0 ? (
+            <div className="px-6 py-12 flex flex-col items-center gap-2">
+              <Flag className="w-8 h-8 text-muted-foreground/30" />
+              <p className="text-sm font-medium text-foreground">No feedback matches your filters</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/60">
+              {sorted.map(fb => renderFeedbackCard(fb, true))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
   //  SECTION: SYSTEM
   // ═══════════════════════════════════════════════════════════════════════════
   const renderSystem = () => (
@@ -1188,8 +1531,9 @@ const Admin = () => {
   //  Root render router
   // ═══════════════════════════════════════════════════════════════════════════
   const renderSection = () => {
-    if (section === "overview") return renderOverview();
-    if (section === "system")   return renderSystem();
+    if (section === "overview")  return renderOverview();
+    if (section === "system")    return renderSystem();
+    if (section === "feedback")  return renderFeedback();
 
     // tenants section: 3-level drill-down
     if (section === "tenants") {
@@ -1220,6 +1564,8 @@ const Admin = () => {
           )}
           {NAV.map((nav) => {
             const isActive = section === nav.id;
+            // Badge count for feedback nav
+            const showBadge = nav.id === "feedback" && unreviewedCount > 0;
             return (
               <button key={nav.id} onClick={() => { setSection(nav.id); if (nav.id !== "tenants") { setSelectedTenantId(null); setSelectedWorkspaceId(null); } }}
                 title={collapsed ? nav.label : undefined}
@@ -1228,8 +1574,22 @@ const Admin = () => {
                 onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = SB.border; (e.currentTarget as HTMLElement).style.color = SB.navHover; } }}
                 onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = SB.nav; } }}>
                 {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full" style={{ background: SB.activeBar }} />}
-                <nav.icon className="w-4 h-4 shrink-0" />
-                {!collapsed && <span className="text-[13px] font-medium flex-1 text-left truncate">{nav.label}</span>}
+                <div className="relative shrink-0">
+                  <nav.icon className="w-4 h-4" />
+                  {showBadge && collapsed && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-500" />
+                  )}
+                </div>
+                {!collapsed && (
+                  <>
+                    <span className="text-[13px] font-medium flex-1 text-left truncate">{nav.label}</span>
+                    {showBadge && (
+                      <span className="ml-auto shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                        {unreviewedCount}
+                      </span>
+                    )}
+                  </>
+                )}
               </button>
             );
           })}
@@ -1290,9 +1650,10 @@ const Admin = () => {
               <div>
                 <h1 className="text-[15px] font-bold text-foreground leading-none">{activeNav.label}</h1>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {section === "overview" && "Platform-wide analytics snapshot"}
-                  {section === "tenants"  && "Select a tenant to drill into workspaces and sessions"}
-                  {section === "system"   && "API health and infrastructure metrics"}
+                  {section === "overview"  && "Platform-wide analytics snapshot"}
+                  {section === "tenants"   && "Select a tenant to drill into workspaces and sessions"}
+                  {section === "feedback"  && `${unreviewedCount} messages awaiting review · add remarks to track status`}
+                  {section === "system"    && "API health and infrastructure metrics"}
                 </p>
               </div>
             )}
