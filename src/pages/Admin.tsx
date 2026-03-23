@@ -58,6 +58,18 @@ interface AdminRemark {
   timestamp: string;
 }
 
+// ── Admin team (mock developers/reviewers) ────────────────────────────────────
+const ADMIN_TEAM: { email: string; name: string; initials: string; color: string }[] = [
+  { email: "admin@enplify.ai",    name: "Alex Morgan",   initials: "AM", color: "#6366f1" },
+  { email: "dev1@enplify.ai",     name: "Jordan Lee",    initials: "JL", color: "#10b981" },
+  { email: "dev2@enplify.ai",     name: "Sam Rivera",    initials: "SR", color: "#f59e0b" },
+  { email: "dev3@enplify.ai",     name: "Casey Park",    initials: "CP", color: "#8b5cf6" },
+  { email: "support@enplify.ai",  name: "Taylor Brooks", initials: "TB", color: "#06b6d4" },
+];
+
+const getAdminByEmail = (email: string) =>
+  ADMIN_TEAM.find(a => a.email === email) ?? { email, name: email.split("@")[0], initials: email[0].toUpperCase(), color: "#94a3b8" };
+
 // ── Navigation ────────────────────────────────────────────────────────────────
 type Section = "overview" | "tenants" | "feedback" | "system";
 
