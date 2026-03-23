@@ -58,6 +58,18 @@ interface AdminRemark {
   timestamp: string;
 }
 
+// ── Admin team (mock developers/reviewers) ────────────────────────────────────
+const ADMIN_TEAM: { email: string; name: string; initials: string; color: string }[] = [
+  { email: "admin@enplify.ai",    name: "Alex Morgan",   initials: "AM", color: "#6366f1" },
+  { email: "dev1@enplify.ai",     name: "Jordan Lee",    initials: "JL", color: "#10b981" },
+  { email: "dev2@enplify.ai",     name: "Sam Rivera",    initials: "SR", color: "#f59e0b" },
+  { email: "dev3@enplify.ai",     name: "Casey Park",    initials: "CP", color: "#8b5cf6" },
+  { email: "support@enplify.ai",  name: "Taylor Brooks", initials: "TB", color: "#06b6d4" },
+];
+
+const getAdminByEmail = (email: string) =>
+  ADMIN_TEAM.find(a => a.email === email) ?? { email, name: email.split("@")[0], initials: email[0].toUpperCase(), color: "#94a3b8" };
+
 // ── Navigation ────────────────────────────────────────────────────────────────
 type Section = "overview" | "tenants" | "feedback" | "system";
 
@@ -187,12 +199,15 @@ const Admin = () => {
   const [fbTypeFilter, setFbTypeFilter] = useState<"all" | "positive" | "negative">("all");
   const [fbTenantFilter, setFbTenantFilter] = useState<string>("all");
   const [fbStatusFilter, setFbStatusFilter] = useState<"all" | "reviewed" | "escalated" | "resolved" | "unreviewed">("all");
+  const [fbReviewerFilter, setFbReviewerFilter] = useState<string>("all");
+  const [fbSortBy, setFbSortBy] = useState<"default" | "reviewer" | "newest" | "negative-first">("default");
 
   // Admin remarks state — local (in real app these would be persisted)
   const [adminRemarks, setAdminRemarks] = useState<Record<string, AdminRemark>>({});
   const [editingRemarkId, setEditingRemarkId] = useState<string | null>(null);
   const [remarkDraft, setRemarkDraft] = useState("");
   const [remarkStatusDraft, setRemarkStatusDraft] = useState<RemarkStatus>("reviewed");
+  const [remarkAuthorDraft, setRemarkAuthorDraft] = useState<string>("admin@enplify.ai");
 
   const days = dateRange.preset ?? 30;
   const userData = sliceByDays(userGrowthData, days);
@@ -251,6 +266,7 @@ const Admin = () => {
     const existing = adminRemarks[fbId];
     setRemarkDraft(existing?.text ?? "");
     setRemarkStatusDraft(existing?.status ?? "reviewed");
+    setRemarkAuthorDraft(existing?.author ?? "admin@enplify.ai");
     setEditingRemarkId(fbId);
   };
 
@@ -262,7 +278,7 @@ const Admin = () => {
         feedbackId: fbId,
         text: remarkDraft.trim(),
         status: remarkStatusDraft,
-        author: "admin@enplify.ai",
+        author: remarkAuthorDraft,
         timestamp: new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
       },
     }));
@@ -372,29 +388,61 @@ const Admin = () => {
             </div>
 
             {/* Admin remark display */}
-            {remark && !isEditing && (
-              <div className="rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 mb-2">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-bold text-primary uppercase tracking-wide">Admin Remark</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground">{remark.author.split("@")[0]} · {remark.timestamp}</span>
-                    <button
-                      onClick={() => startEditRemark(fb.id)}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                    >
+            {remark && !isEditing && (() => {
+              const reviewer = getAdminByEmail(remark.author);
+              return (
+                <div className="rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 mb-2">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-primary uppercase tracking-wide">Admin Remark</span>
+                      <span className={cn("inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full border", REMARK_STATUS_CFG[remark.status].cls)}>
+                        {(() => { const Icon = REMARK_STATUS_CFG[remark.status].icon; return <Icon className="w-2.5 h-2.5" />; })()}
+                        {REMARK_STATUS_CFG[remark.status].label}
+                      </span>
+                    </div>
+                    <button onClick={() => startEditRemark(fb.id)} className="text-muted-foreground hover:text-foreground transition-colors">
                       <Pencil className="w-3 h-3" />
                     </button>
                   </div>
+                  <p className="text-[12px] text-foreground/80 leading-relaxed mb-2">{remark.text}</p>
+                  {/* Author + timestamp row */}
+                  <div className="flex items-center gap-1.5 pt-1.5 border-t border-primary/10">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 text-white"
+                      style={{ background: reviewer.color }}>
+                      {reviewer.initials}
+                    </div>
+                    <span className="text-[11px] font-semibold text-foreground/70">{reviewer.name}</span>
+                    <span className="text-[10px] text-muted-foreground">· {remark.timestamp}</span>
+                  </div>
                 </div>
-                <p className="text-[12px] text-foreground/80 leading-relaxed">{remark.text}</p>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Remark editor */}
             {isEditing ? (
               <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-2">
+                {/* Reviewer selector */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Set status:</span>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Reviewer:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {ADMIN_TEAM.map(admin => (
+                      <button key={admin.email} onClick={() => setRemarkAuthorDraft(admin.email)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors",
+                          remarkAuthorDraft === admin.email
+                            ? "border-primary/60 bg-primary/10 text-primary"
+                            : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}>
+                        <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0"
+                          style={{ background: admin.color }}>{admin.initials[0]}</span>
+                        {admin.name.split(" ")[0]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Status selector */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Status:</span>
                   {(["reviewed", "escalated", "resolved"] as RemarkStatus[]).map(s => {
                     const cfg = REMARK_STATUS_CFG[s];
                     const Icon = cfg.icon;
@@ -416,18 +464,29 @@ const Admin = () => {
                   rows={2}
                   className="w-full text-[12px] bg-background border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 resize-none"
                 />
-                <div className="flex items-center gap-2 justify-end">
-                  <button onClick={cancelRemark}
-                    className="text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded">
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => saveRemark(fb.id)}
-                    disabled={!remarkDraft.trim()}
-                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                  >
-                    <Send className="w-3 h-3" /> Save Remark
-                  </button>
+                <div className="flex items-center gap-2 justify-between">
+                  {/* Preview who's adding */}
+                  <div className="flex items-center gap-1.5">
+                    {(() => { const a = getAdminByEmail(remarkAuthorDraft); return (
+                      <>
+                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ background: a.color }}>{a.initials}</div>
+                        <span className="text-[11px] text-muted-foreground">{a.name}</span>
+                      </>
+                    ); })()}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={cancelRemark}
+                      className="text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded">
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => saveRemark(fb.id)}
+                      disabled={!remarkDraft.trim()}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    >
+                      <Send className="w-3 h-3" /> Save Remark
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1304,6 +1363,9 @@ const Admin = () => {
     const reviewed  = Object.keys(adminRemarks).length;
     const unreviewed = feedbackMessages.length - reviewed;
 
+    // Active reviewers (admins who have added at least one remark)
+    const activeReviewers = Array.from(new Set(Object.values(adminRemarks).map(r => r.author)));
+
     const filtered = feedbackMessages.filter(fb => {
       const matchType   = fbTypeFilter === "all" || fb.feedbackType === fbTypeFilter;
       const matchTenant = fbTenantFilter === "all" || fb.tenantId === fbTenantFilter;
@@ -1316,11 +1378,25 @@ const Admin = () => {
       const matchStatus = fbStatusFilter === "all" ? true
         : fbStatusFilter === "unreviewed" ? !remark
         : remark?.status === fbStatusFilter;
-      return matchType && matchTenant && matchSearch && matchStatus;
+      const matchReviewer = fbReviewerFilter === "all" ? true
+        : fbReviewerFilter === "unreviewed" ? !remark
+        : remark?.author === fbReviewerFilter;
+      return matchType && matchTenant && matchSearch && matchStatus && matchReviewer;
     });
 
-    // Sort: negative first, then by no-remark first
+    // Sort
     const sorted = [...filtered].sort((a, b) => {
+      if (fbSortBy === "reviewer") {
+        const aAuthor = adminRemarks[a.id]?.author ?? "zzz";
+        const bAuthor = adminRemarks[b.id]?.author ?? "zzz";
+        return aAuthor.localeCompare(bAuthor);
+      }
+      if (fbSortBy === "newest") return 0;
+      if (fbSortBy === "negative-first") {
+        if (a.feedbackType !== b.feedbackType) return a.feedbackType === "negative" ? -1 : 1;
+        return 0;
+      }
+      // default: negative first, unreviewed first
       if (a.feedbackType !== b.feedbackType) return a.feedbackType === "negative" ? -1 : 1;
       const aRemarked = !!adminRemarks[a.id];
       const bRemarked = !!adminRemarks[b.id];
@@ -1330,6 +1406,8 @@ const Admin = () => {
 
     const posCount = feedbackMessages.filter(f => f.feedbackType === "positive").length;
     const negCount = feedbackMessages.filter(f => f.feedbackType === "negative").length;
+
+    const hasActiveFilters = !!(fbSearch || fbTypeFilter !== "all" || fbTenantFilter !== "all" || fbStatusFilter !== "all" || fbReviewerFilter !== "all");
 
     return (
       <div className="space-y-5">
@@ -1341,7 +1419,7 @@ const Admin = () => {
           <Stat label="Unreviewed"        value={unreviewed}                sub="awaiting admin review"   icon={Flag}          color={unreviewed > 0 ? "#f59e0b" : "#10b981"} />
         </div>
 
-        {/* Review progress bar */}
+        {/* Review progress bar + reviewer breakdown */}
         {feedbackMessages.length > 0 && (
           <div className="rounded-xl bg-card border border-border px-4 py-3">
             <div className="flex items-center justify-between mb-2">
@@ -1352,17 +1430,38 @@ const Admin = () => {
               <div className="h-full rounded-full bg-primary transition-all duration-500"
                 style={{ width: `${(reviewed / feedbackMessages.length) * 100}%` }} />
             </div>
-            <div className="flex items-center gap-4 mt-2">
-              {(["reviewed", "escalated", "resolved"] as RemarkStatus[]).map(s => {
-                const cnt = Object.values(adminRemarks).filter(r => r.status === s).length;
-                const cfg = REMARK_STATUS_CFG[s];
-                const Icon = cfg.icon;
-                return (
-                  <span key={s} className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border", cfg.cls)}>
-                    <Icon className="w-2.5 h-2.5" />{cnt} {cfg.label}
-                  </span>
-                );
-              })}
+            <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {(["reviewed", "escalated", "resolved"] as RemarkStatus[]).map(s => {
+                  const cnt = Object.values(adminRemarks).filter(r => r.status === s).length;
+                  const cfg = REMARK_STATUS_CFG[s];
+                  const Icon = cfg.icon;
+                  return (
+                    <span key={s} className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border", cfg.cls)}>
+                      <Icon className="w-2.5 h-2.5" />{cnt} {cfg.label}
+                    </span>
+                  );
+                })}
+              </div>
+              {/* Reviewer avatars strip */}
+              {activeReviewers.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground">Reviewers:</span>
+                  <div className="flex -space-x-1">
+                    {activeReviewers.map(email => {
+                      const a = getAdminByEmail(email);
+                      const cnt = Object.values(adminRemarks).filter(r => r.author === email).length;
+                      return (
+                        <div key={email} title={`${a.name} — ${cnt} remark${cnt !== 1 ? "s" : ""}`}
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ring-2 ring-card cursor-default"
+                          style={{ background: a.color }}>
+                          {a.initials}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1387,7 +1486,7 @@ const Admin = () => {
             )}
           </div>
 
-          {/* Filter chips */}
+          {/* Filter chips row 1 */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Type filter */}
             <div className="flex items-center gap-1.5">
@@ -1452,12 +1551,70 @@ const Admin = () => {
                 })}
               </div>
             </div>
+          </div>
 
-            {(fbSearch || fbTypeFilter !== "all" || fbTenantFilter !== "all" || fbStatusFilter !== "all") && (
+          {/* Filter chips row 2 — Reviewer + Sort */}
+          <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-border/40">
+            {/* Reviewer filter */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Reviewer</span>
+              <div className="flex flex-wrap gap-1">
+                <button onClick={() => setFbReviewerFilter("all")}
+                  className={cn(
+                    "text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-colors",
+                    fbReviewerFilter === "all"
+                      ? "bg-primary border-primary text-primary-foreground"
+                      : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}>All</button>
+                <button onClick={() => setFbReviewerFilter("unreviewed")}
+                  className={cn(
+                    "text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-colors",
+                    fbReviewerFilter === "unreviewed"
+                      ? "bg-amber-500 border-amber-500 text-white"
+                      : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}>No reviewer yet</button>
+                {ADMIN_TEAM.map(admin => {
+                  const cnt = Object.values(adminRemarks).filter(r => r.author === admin.email).length;
+                  if (cnt === 0) return null;
+                  const isActive = fbReviewerFilter === admin.email;
+                  return (
+                    <button key={admin.email} onClick={() => setFbReviewerFilter(admin.email)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-1 rounded-full border transition-colors",
+                        isActive
+                          ? "border-primary/60 text-primary-foreground"
+                          : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
+                      style={isActive ? { background: admin.color, borderColor: admin.color } : undefined}>
+                      <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0"
+                        style={{ background: isActive ? "rgba(255,255,255,0.3)" : admin.color }}>{admin.initials}</span>
+                      {admin.name.split(" ")[0]}
+                      <span className={cn("text-[9px] font-bold px-1 rounded-full", isActive ? "bg-white/20 text-white" : "bg-muted text-muted-foreground")}>{cnt}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="ml-auto flex items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Sort</span>
+              <select
+                value={fbSortBy}
+                onChange={e => setFbSortBy(e.target.value as typeof fbSortBy)}
+                className="text-[11px] font-semibold bg-muted/40 border border-border rounded-full px-2.5 py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer"
+              >
+                <option value="default">Default (urgent first)</option>
+                <option value="negative-first">Negative first</option>
+                <option value="newest">Newest first</option>
+                <option value="reviewer">By reviewer</option>
+              </select>
+            </div>
+
+            {hasActiveFilters && (
               <button
-                onClick={() => { setFbSearch(""); setFbTypeFilter("all"); setFbTenantFilter("all"); setFbStatusFilter("all"); }}
-                className="ml-auto text-[11px] font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1">
-                <XCircle className="w-3.5 h-3.5" /> Clear
+                onClick={() => { setFbSearch(""); setFbTypeFilter("all"); setFbTenantFilter("all"); setFbStatusFilter("all"); setFbReviewerFilter("all"); setFbSortBy("default"); }}
+                className="text-[11px] font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+                <XCircle className="w-3.5 h-3.5" /> Clear all
               </button>
             )}
           </div>
