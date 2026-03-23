@@ -1363,6 +1363,9 @@ const Admin = () => {
     const reviewed  = Object.keys(adminRemarks).length;
     const unreviewed = feedbackMessages.length - reviewed;
 
+    // Active reviewers (admins who have added at least one remark)
+    const activeReviewers = Array.from(new Set(Object.values(adminRemarks).map(r => r.author)));
+
     const filtered = feedbackMessages.filter(fb => {
       const matchType   = fbTypeFilter === "all" || fb.feedbackType === fbTypeFilter;
       const matchTenant = fbTenantFilter === "all" || fb.tenantId === fbTenantFilter;
@@ -1375,11 +1378,25 @@ const Admin = () => {
       const matchStatus = fbStatusFilter === "all" ? true
         : fbStatusFilter === "unreviewed" ? !remark
         : remark?.status === fbStatusFilter;
-      return matchType && matchTenant && matchSearch && matchStatus;
+      const matchReviewer = fbReviewerFilter === "all" ? true
+        : fbReviewerFilter === "unreviewed" ? !remark
+        : remark?.author === fbReviewerFilter;
+      return matchType && matchTenant && matchSearch && matchStatus && matchReviewer;
     });
 
-    // Sort: negative first, then by no-remark first
+    // Sort
     const sorted = [...filtered].sort((a, b) => {
+      if (fbSortBy === "reviewer") {
+        const aAuthor = adminRemarks[a.id]?.author ?? "zzz";
+        const bAuthor = adminRemarks[b.id]?.author ?? "zzz";
+        return aAuthor.localeCompare(bAuthor);
+      }
+      if (fbSortBy === "newest") return 0;
+      if (fbSortBy === "negative-first") {
+        if (a.feedbackType !== b.feedbackType) return a.feedbackType === "negative" ? -1 : 1;
+        return 0;
+      }
+      // default: negative first, unreviewed first
       if (a.feedbackType !== b.feedbackType) return a.feedbackType === "negative" ? -1 : 1;
       const aRemarked = !!adminRemarks[a.id];
       const bRemarked = !!adminRemarks[b.id];
@@ -1389,6 +1406,8 @@ const Admin = () => {
 
     const posCount = feedbackMessages.filter(f => f.feedbackType === "positive").length;
     const negCount = feedbackMessages.filter(f => f.feedbackType === "negative").length;
+
+    const hasActiveFilters = !!(fbSearch || fbTypeFilter !== "all" || fbTenantFilter !== "all" || fbStatusFilter !== "all" || fbReviewerFilter !== "all");
 
     return (
       <div className="space-y-5">
@@ -1400,7 +1419,7 @@ const Admin = () => {
           <Stat label="Unreviewed"        value={unreviewed}                sub="awaiting admin review"   icon={Flag}          color={unreviewed > 0 ? "#f59e0b" : "#10b981"} />
         </div>
 
-        {/* Review progress bar */}
+        {/* Review progress bar + reviewer breakdown */}
         {feedbackMessages.length > 0 && (
           <div className="rounded-xl bg-card border border-border px-4 py-3">
             <div className="flex items-center justify-between mb-2">
@@ -1411,17 +1430,38 @@ const Admin = () => {
               <div className="h-full rounded-full bg-primary transition-all duration-500"
                 style={{ width: `${(reviewed / feedbackMessages.length) * 100}%` }} />
             </div>
-            <div className="flex items-center gap-4 mt-2">
-              {(["reviewed", "escalated", "resolved"] as RemarkStatus[]).map(s => {
-                const cnt = Object.values(adminRemarks).filter(r => r.status === s).length;
-                const cfg = REMARK_STATUS_CFG[s];
-                const Icon = cfg.icon;
-                return (
-                  <span key={s} className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border", cfg.cls)}>
-                    <Icon className="w-2.5 h-2.5" />{cnt} {cfg.label}
-                  </span>
-                );
-              })}
+            <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {(["reviewed", "escalated", "resolved"] as RemarkStatus[]).map(s => {
+                  const cnt = Object.values(adminRemarks).filter(r => r.status === s).length;
+                  const cfg = REMARK_STATUS_CFG[s];
+                  const Icon = cfg.icon;
+                  return (
+                    <span key={s} className={cn("inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border", cfg.cls)}>
+                      <Icon className="w-2.5 h-2.5" />{cnt} {cfg.label}
+                    </span>
+                  );
+                })}
+              </div>
+              {/* Reviewer avatars strip */}
+              {activeReviewers.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground">Reviewers:</span>
+                  <div className="flex -space-x-1">
+                    {activeReviewers.map(email => {
+                      const a = getAdminByEmail(email);
+                      const cnt = Object.values(adminRemarks).filter(r => r.author === email).length;
+                      return (
+                        <div key={email} title={`${a.name} — ${cnt} remark${cnt !== 1 ? "s" : ""}`}
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ring-2 ring-card cursor-default"
+                          style={{ background: a.color }}>
+                          {a.initials}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1446,7 +1486,7 @@ const Admin = () => {
             )}
           </div>
 
-          {/* Filter chips */}
+          {/* Filter chips row 1 */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Type filter */}
             <div className="flex items-center gap-1.5">
@@ -1511,12 +1551,70 @@ const Admin = () => {
                 })}
               </div>
             </div>
+          </div>
 
-            {(fbSearch || fbTypeFilter !== "all" || fbTenantFilter !== "all" || fbStatusFilter !== "all") && (
+          {/* Filter chips row 2 — Reviewer + Sort */}
+          <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-border/40">
+            {/* Reviewer filter */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Reviewer</span>
+              <div className="flex flex-wrap gap-1">
+                <button onClick={() => setFbReviewerFilter("all")}
+                  className={cn(
+                    "text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-colors",
+                    fbReviewerFilter === "all"
+                      ? "bg-primary border-primary text-primary-foreground"
+                      : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}>All</button>
+                <button onClick={() => setFbReviewerFilter("unreviewed")}
+                  className={cn(
+                    "text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-colors",
+                    fbReviewerFilter === "unreviewed"
+                      ? "bg-amber-500 border-amber-500 text-white"
+                      : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}>No reviewer yet</button>
+                {ADMIN_TEAM.map(admin => {
+                  const cnt = Object.values(adminRemarks).filter(r => r.author === admin.email).length;
+                  if (cnt === 0) return null;
+                  const isActive = fbReviewerFilter === admin.email;
+                  return (
+                    <button key={admin.email} onClick={() => setFbReviewerFilter(admin.email)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-1 rounded-full border transition-colors",
+                        isActive
+                          ? "border-primary/60 text-primary-foreground"
+                          : "border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
+                      style={isActive ? { background: admin.color, borderColor: admin.color } : undefined}>
+                      <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0"
+                        style={{ background: isActive ? "rgba(255,255,255,0.3)" : admin.color }}>{admin.initials}</span>
+                      {admin.name.split(" ")[0]}
+                      <span className={cn("text-[9px] font-bold px-1 rounded-full", isActive ? "bg-white/20 text-white" : "bg-muted text-muted-foreground")}>{cnt}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="ml-auto flex items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Sort</span>
+              <select
+                value={fbSortBy}
+                onChange={e => setFbSortBy(e.target.value as typeof fbSortBy)}
+                className="text-[11px] font-semibold bg-muted/40 border border-border rounded-full px-2.5 py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer"
+              >
+                <option value="default">Default (urgent first)</option>
+                <option value="negative-first">Negative first</option>
+                <option value="newest">Newest first</option>
+                <option value="reviewer">By reviewer</option>
+              </select>
+            </div>
+
+            {hasActiveFilters && (
               <button
-                onClick={() => { setFbSearch(""); setFbTypeFilter("all"); setFbTenantFilter("all"); setFbStatusFilter("all"); }}
-                className="ml-auto text-[11px] font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1">
-                <XCircle className="w-3.5 h-3.5" /> Clear
+                onClick={() => { setFbSearch(""); setFbTypeFilter("all"); setFbTenantFilter("all"); setFbStatusFilter("all"); setFbReviewerFilter("all"); setFbSortBy("default"); }}
+                className="text-[11px] font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+                <XCircle className="w-3.5 h-3.5" /> Clear all
               </button>
             )}
           </div>
