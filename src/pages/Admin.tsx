@@ -199,12 +199,15 @@ const Admin = () => {
   const [fbTypeFilter, setFbTypeFilter] = useState<"all" | "positive" | "negative">("all");
   const [fbTenantFilter, setFbTenantFilter] = useState<string>("all");
   const [fbStatusFilter, setFbStatusFilter] = useState<"all" | "reviewed" | "escalated" | "resolved" | "unreviewed">("all");
+  const [fbReviewerFilter, setFbReviewerFilter] = useState<string>("all");
+  const [fbSortBy, setFbSortBy] = useState<"default" | "reviewer" | "newest" | "negative-first">("default");
 
   // Admin remarks state — local (in real app these would be persisted)
   const [adminRemarks, setAdminRemarks] = useState<Record<string, AdminRemark>>({});
   const [editingRemarkId, setEditingRemarkId] = useState<string | null>(null);
   const [remarkDraft, setRemarkDraft] = useState("");
   const [remarkStatusDraft, setRemarkStatusDraft] = useState<RemarkStatus>("reviewed");
+  const [remarkAuthorDraft, setRemarkAuthorDraft] = useState<string>("admin@enplify.ai");
 
   const days = dateRange.preset ?? 30;
   const userData = sliceByDays(userGrowthData, days);
