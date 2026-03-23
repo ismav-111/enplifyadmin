@@ -266,6 +266,7 @@ const Admin = () => {
     const existing = adminRemarks[fbId];
     setRemarkDraft(existing?.text ?? "");
     setRemarkStatusDraft(existing?.status ?? "reviewed");
+    setRemarkAuthorDraft(existing?.author ?? "admin@enplify.ai");
     setEditingRemarkId(fbId);
   };
 
@@ -277,7 +278,7 @@ const Admin = () => {
         feedbackId: fbId,
         text: remarkDraft.trim(),
         status: remarkStatusDraft,
-        author: "admin@enplify.ai",
+        author: remarkAuthorDraft,
         timestamp: new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
       },
     }));
